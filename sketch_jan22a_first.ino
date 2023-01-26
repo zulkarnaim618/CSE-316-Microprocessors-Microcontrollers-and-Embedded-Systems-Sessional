@@ -1,4 +1,5 @@
 #include<string.h>
+#include<stdio.h>
 #define FRAME_RATE 80
 #define ROW_HIGH 49
 #define ROW_LOW 45
@@ -315,18 +316,25 @@ public:
 };
 class ThumbController {
 public:
+  bool hasComeToMiddle;
   int xCount;
   int yCount;
   int xTotalValue;
   int yTotalValue;
   int xVal;
   int yVal;
+  ThumbController() {
+    xCount = yCount = xTotalValue = yTotalValue = xVal = yVal = 0;
+    hasComeToMiddle = true;
+  }
   void reset() {
     xCount = yCount = xTotalValue = yTotalValue = xVal = yVal = 0;
+    //Serial.print("Resetting --------------------------\n");
   }
 };
 class LEDMatrix {
-private:
+public:
+  int quarterSecCount;
   ThumbController* thumbController;
   unsigned char* displayBoard;
   int64_t score;
@@ -334,6 +342,7 @@ private:
   int colSize;
   int buffer;
   Piece* currentPiece;
+  bool isGameOver;
   Piece* generateRandomPiece() {
     // there are 7 pieces in total
     int randomNumber = random(7);
@@ -546,8 +555,10 @@ private:
     }
     return over;
   }
-public:
+  //
   LEDMatrix() {
+    quarterSecCount = 0;
+    isGameOver = false;
     score = 0;
     rowSize = 24;
     colSize = 8;
@@ -556,6 +567,12 @@ public:
     displayBoard = new unsigned char[rowSize+buffer];
     clearDisplayBoard();
     currentPiece = generateRandomPiece();
+  }
+  bool getIsGameOver() {
+    return isGameOver;
+  }
+  void setIsGameOver(bool val) {
+    isGameOver = val;
   }
   void clearDisplayBoard() {
     for (int i=0;i<rowSize+4;i++) {
@@ -599,53 +616,137 @@ public:
   void playGame() {
     clearDisplayBoard();
     score = 0;
-    while(true) {
-      for (int i=0;i<FRAME_RATE;i++) {
+    TCCR1A = 0;// set entire TCCR1A register to 0
+    TCCR1B = 0;// same for TCCR1B
+
+    // set compare match register for 1hz increments
+    OCR1A = 1562; // 1/5th of a second// = (16*10^6) / (1*1024) - 1 (must be <65536)
+    // turn on CTC mode
+    TCCR1B |= (1 << WGM12);
+    // Set CS12 and CS10 bits for 1024 prescaler
+    TCCR1B |= (1 << CS12) | (1 << CS10);  
+    // enable timer compare interrupt
+    
+    TIMSK1 |= (1 << OCIE1A);
+
+    sei();//allow interrupts
+    TCNT1  = 0;
+    while(!isGameOver) {
+      // for (int i=0;i<FRAME_RATE;i++) {
+        char s[100];
         outputDisplayBoard();
-        thumbController->xVal = analogRead(X_THUMB);
-        thumbController->yVal = analogRead(Y_THUMB);
-        thumbController->yCount++;
-        thumbController->yTotalValue += thumbController->yVal;
-        thumbController->xCount++;
-        thumbController->xTotalValue += thumbController->xVal;
-        if (i%27==25) {
-          if (abs((thumbController->yTotalValue/(float)thumbController->yCount)-504)>abs((thumbController->xTotalValue/(float)thumbController->xCount)-504)) {
-            if (thumbController->yTotalValue/(float)thumbController->yCount>650) {
-              if (permitMoveLeft()) currentPiece->setOriginC(currentPiece->getOriginC()+1);
-            }
-            else if (thumbController->yTotalValue/(float)thumbController->yCount<350) {
-              if (permitMoveRight()) currentPiece->setOriginC(currentPiece->getOriginC()-1);
-            }
-          }
-          else {
-            if (thumbController->xTotalValue/(float)thumbController->xCount<350) {
-              if (permitActionRotate()) currentPiece->rotatePieceBoard();
-            }
-            else if (thumbController->xTotalValue/(float)thumbController->xCount>650) {
-              if (permitMoveDown()) currentPiece->setOriginR(currentPiece->getOriginR()+1);
-            }
-          }
-          thumbController->reset();
-        }
+        // thumbController->xVal = analogRead(X_THUMB);
+        // thumbController->yVal = analogRead(Y_THUMB);
+        // thumbController->yCount++;
+        // thumbController->yTotalValue += thumbController->yVal;
+        // thumbController->xCount++;
+        // thumbController->xTotalValue += thumbController->xVal;
+        //sprintf(s,"xCount: %d xVal: %d xTotalValue: %d\n",thumbController->xCount,thumbController->xVal,thumbController->xTotalValue);
+        //Serial.print(s);
+        // if (i%27==25) {
+        //   if (abs((thumbController->yTotalValue/(float)thumbController->yCount)-504)>abs((thumbController->xTotalValue/(float)thumbController->xCount)-504)) {
+        //     if (thumbController->yTotalValue/(float)thumbController->yCount>650) {
+        //       if (permitMoveLeft()) currentPiece->setOriginC(currentPiece->getOriginC()+1);
+        //     }
+        //     else if (thumbController->yTotalValue/(float)thumbController->yCount<350) {
+        //       if (permitMoveRight()) currentPiece->setOriginC(currentPiece->getOriginC()-1);
+        //     }
+        //   }
+        //   else {
+        //     if (thumbController->xTotalValue/(float)thumbController->xCount<350) {
+        //       if (permitActionRotate()) currentPiece->rotatePieceBoard();
+        //     }
+        //     else if (thumbController->xTotalValue/(float)thumbController->xCount>650) {
+        //       if (permitMoveDown()) currentPiece->setOriginR(currentPiece->getOriginR()+1);
+        //     }
+        //   }
+        //   thumbController->reset();
+        // }
       }
-      Serial.print("Origin: ");
-      Serial.print(currentPiece->getOriginC());
-      Serial.print("\n");
-      if (permitMoveDown()) {
-        currentPiece->setOriginR(currentPiece->getOriginR()+1);
-      }
-      else {
-        printCurrentPiece();
-        removeFilledRowsAndAddScore();
-        if (gameOver()) {
-          break;
-        }
-      }
-    }
+      // Serial.print("Origin: ");
+      // Serial.print(currentPiece->getOriginC());
+      // Serial.print("\n");
+      // if (permitMoveDown()) {
+      //   currentPiece->setOriginR(currentPiece->getOriginR()+1);
+      // }
+      // else {
+      //   printCurrentPiece();
+      //   removeFilledRowsAndAddScore();
+      //   if (gameOver()) {
+      //     cli();
+      //     break;
+      //   }
+      // }
+    //}
     // write score to sd card
   }
 };
 
+ISR(TIMER1_COMPA_vect){//timer1 interrupt 1Hz toggles pin 13 (LED)
+//generates pulse wave of frequency 1Hz/2 = 0.5kHz (takes two cycles for full wave- toggle high then toggle low)
+  cli();
+  matrix->quarterSecCount++;
+  if (matrix->quarterSecCount%10==0) {
+    matrix->quarterSecCount = 0;
+    if (matrix->permitMoveDown()) {
+      matrix->currentPiece->setOriginR(matrix->currentPiece->getOriginR()+1);
+    }
+    else {
+      matrix->printCurrentPiece();
+      matrix->removeFilledRowsAndAddScore();
+      if (matrix->gameOver()) {
+        cli();
+        matrix->setIsGameOver(true);
+      }
+    }
+  }
+  else {
+    matrix->thumbController->xVal = analogRead(X_THUMB);
+    matrix->thumbController->yVal = analogRead(Y_THUMB);
+    if (matrix->thumbController->xVal<600 && matrix->thumbController->xVal>400) {
+      matrix->thumbController->hasComeToMiddle = true;
+    }
+    matrix->thumbController->yCount++;
+    matrix->thumbController->yTotalValue += matrix->thumbController->yVal;
+    matrix->thumbController->xCount++;
+    matrix->thumbController->xTotalValue += matrix->thumbController->xVal;
+    int yAvg = matrix->thumbController->yTotalValue/matrix->thumbController->yCount;
+    int xAvg = matrix->thumbController->xTotalValue/matrix->thumbController->xCount;
+    //Serial.print("yAvg: ");
+    //Serial.print(yAvg);
+    // Serial.print("\nxAvg: ");
+    //  Serial.print(xAvg);
+    // Serial.print("\n"); 
+     char s[100];
+    // Serial.print("Avg printint\n");
+    //sprintf(s,"xCount: %d xTotalVal: %d xAvg: %d\n",matrix->thumbController->xCount,matrix->thumbController->xTotalValue,xAvg);
+    //Serial.print(s);
+    if (abs(yAvg-504)>abs(xAvg-504)) {
+      if (yAvg>650) {
+        if (matrix->permitMoveLeft()) matrix->currentPiece->setOriginC(matrix->currentPiece->getOriginC()+1);
+      }
+      else if (yAvg<350) {
+        if (matrix->permitMoveRight()) matrix->currentPiece->setOriginC(matrix->currentPiece->getOriginC()-1);
+      }
+    }
+    else {
+      if (xAvg<350) {
+        if (matrix->permitActionRotate() && matrix->thumbController->hasComeToMiddle) {
+          matrix->currentPiece->rotatePieceBoard();
+          matrix->thumbController->hasComeToMiddle = false;
+        }
+      }
+      else if (xAvg>650) {
+        if (matrix->permitMoveDown()) matrix->currentPiece->setOriginR(matrix->currentPiece->getOriginR()+1);
+      }
+    }
+    matrix->thumbController->reset();
+
+  }
+  
+  sei();//allow interrupts
+  TCNT1  = 0;
+}
 
 
 // setup and loop
