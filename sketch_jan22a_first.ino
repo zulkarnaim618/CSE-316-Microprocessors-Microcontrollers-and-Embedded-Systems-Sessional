@@ -334,13 +334,14 @@ public:
 };
 class LEDMatrix {
 public:
-  int quarterSecCount;
+  int divSecCount;
   ThumbController* thumbController;
   unsigned char* displayBoard;
   int64_t score;
   int rowSize;
   int colSize;
   int buffer;
+  int rotateOffset;
   Piece* currentPiece;
   bool isGameOver;
   Piece* generateRandomPiece() {
@@ -473,7 +474,120 @@ public:
     // Serial.print("\n");
     return ok;
   }
+  bool permitActionRotateAdvanced() {
+    rotateOffset = 0;
+    bool ok = true;
+    unsigned char* spacemap = new unsigned char[rowSize];
+    int irow,icol,crow,ccol;
+    for (int i=0;i<rowSize;i++) {
+      spacemap[i] = 0b00000000;
+    }
+    int colHigh,colLow,rowHigh,rowLow;
+    colLow = colSize;
+    colHigh = -1;
+    rowLow = rowSize+buffer;
+    rowHigh = -1;
+    for (int i=0;i<currentPiece->getRowSize();i++) {
+      for (int j=0;j<currentPiece->getColSize();j++) {
+        if (currentPiece->getPieceBoard()[i]&(1<<j)) {
+          irow = i;
+          icol = j;
+          crow = currentPiece->getRowSize()-icol-1;
+          ccol = irow;
+          rowLow = min(rowLow,currentPiece->getOriginR()+irow);
+          rowHigh = max(rowHigh,currentPiece->getOriginR()+irow);
+          rowLow = min(rowLow,currentPiece->getOriginR()+crow);
+          rowHigh = max(rowHigh,currentPiece->getOriginR()+crow);
+          colLow = min(colLow,currentPiece->getOriginC()-currentPiece->getColSize()+1+icol);
+          colHigh = max(colHigh,currentPiece->getOriginC()-currentPiece->getColSize()+1+icol);
+          colLow = min(colLow,currentPiece->getOriginC()-currentPiece->getColSize()+1+ccol);
+          colHigh = max(colHigh,currentPiece->getOriginC()-currentPiece->getColSize()+1+ccol);
+          // Serial.print("Row: ");
+          // Serial.print(i);
+          // Serial.print("\tCol: ");
+          // Serial.print(j);
+          // Serial.print("\tCol low: ");
+          // Serial.print(colLow);
+          // Serial.print("\tCol High: ");
+          // Serial.println(colHigh);       
+          if (crow<=irow) {
+            if (ccol>icol) {
+                for (;icol<=ccol;icol++) spacemap[irow] |= (1<<icol);
+                icol = ccol;
+            }
+            if (ccol<=icol) {
+                for (;irow>=crow;irow--) spacemap[irow] |= (1<<icol);
+                irow = crow;
+            }
+            if (ccol<icol) {
+                for (;icol>=ccol;icol--) spacemap[irow] |= (1<<icol);
+                icol = ccol;
+            }
+          }
+          else {
+            if (ccol<icol) {
+                for (;icol>=ccol;icol--) spacemap[irow] |= (1<<icol);
+                icol = ccol;
+            }
+            if (ccol>=icol) {
+                for (;irow<=crow;irow++) spacemap[irow] |= (1<<icol);
+                irow = crow;
+            }
+            if (ccol>icol) {
+                for (;icol<=ccol;icol++) spacemap[irow] |= (1<<icol);
+                icol = ccol;
+            }
+          }
+        }
+      }
+    }
+    // Serial.print("Col Low: ");
+    // Serial.println(colLow);
+    // Serial.print("Col High: ");
+    // Serial.println(colHigh);
+    // for (int i=0;i<currentPiece->getRowSize();i++) {
+    //   if (spacemap[i]) {
+    //     rowLow = min(rowLow,currentPiece->getOriginR()+i);
+    //     rowHigh = max(rowHigh,currentPiece->getOriginR()+i);
+    //   }
+    // }
+    // for (int i=0;i<currentPiece->getColSize();i++) {
+    //   unsigned char tempPieceCol = 0b00000000;
+    //   for (int j=0;j<currentPiece->getRowSize();j++) {
+    //     if (spacemap[j]&(1<<i)) {
+    //       tempPieceCol |= (1<<(currentPiece->getRowSize()-j-1));
+    //     }
+    //   }
+    //   if (tempPieceCol) {
+    //     colLow = min(colLow,currentPiece->getOriginC()-currentPiece->getColSize()+1+i);
+    //     colHigh = max(colHigh,currentPiece->getOriginC()-currentPiece->getColSize()+1+i);
+    //   }
+    // }
+    if ((rowLow>=0 && rowHigh<=rowSize+buffer-1 && rowLow<=rowHigh) && (colLow<=colHigh)) {
+      if (colLow<0) {
+        rotateOffset = colLow;
+      }
+      else if (colHigh>colSize-1) {
+        rotateOffset = colHigh-colSize+1;
+      }
+      unsigned char temp;
+      int shift;
+      for (int i=0;i<currentPiece->getRowSize();i++) {
+        shift = currentPiece->getOriginC()-currentPiece->getColSize()+1-rotateOffset;
+        temp = (shift<0?spacemap[i]>>(-shift):spacemap[i]<<shift);
+        if (displayBoard[currentPiece->getOriginR()+i]&temp) {
+          ok = false;
+          break;
+        }
+      }
+    }
+    else {
+      ok = false;
+    }
+    return ok;    
+  }
   bool permitActionRotate() {
+    rotateOffset = 0;
     bool ok = true;
     int colHigh,colLow,rowHigh,rowLow;
     colLow = colSize;
@@ -557,7 +671,8 @@ public:
   }
   //
   LEDMatrix() {
-    quarterSecCount = 0;
+    rotateOffset = 0;
+    divSecCount = 0;
     isGameOver = false;
     score = 0;
     rowSize = 24;
@@ -685,9 +800,9 @@ public:
 ISR(TIMER1_COMPA_vect){//timer1 interrupt 1Hz toggles pin 13 (LED)
 //generates pulse wave of frequency 1Hz/2 = 0.5kHz (takes two cycles for full wave- toggle high then toggle low)
   cli();
-  matrix->quarterSecCount++;
-  if (matrix->quarterSecCount%10==0) {
-    matrix->quarterSecCount = 0;
+  matrix->divSecCount++;
+  if (matrix->divSecCount%10==0) {
+    matrix->divSecCount = 0;
     if (matrix->permitMoveDown()) {
       matrix->currentPiece->setOriginR(matrix->currentPiece->getOriginR()+1);
     }
@@ -731,8 +846,11 @@ ISR(TIMER1_COMPA_vect){//timer1 interrupt 1Hz toggles pin 13 (LED)
     }
     else {
       if (xAvg<350) {
-        if (matrix->permitActionRotate() && matrix->thumbController->hasComeToMiddle) {
+        if (matrix->thumbController->hasComeToMiddle && matrix->permitActionRotateAdvanced()) {
           matrix->currentPiece->rotatePieceBoard();
+          //Serial.print("Rotate offset: ");
+          //Serial.println(matrix->rotateOffset);
+          matrix->currentPiece->setOriginC(matrix->currentPiece->getOriginC()-matrix->rotateOffset);
           matrix->thumbController->hasComeToMiddle = false;
         }
       }
