@@ -1,6 +1,7 @@
 #include<string.h>
 #include<stdio.h>
-#include<inttypes.h>
+#include<SD.h>
+#include<SPI.h>
 //#define FRAME_RATE 80
 #define SPEED_LOW 7
 #define SPEED_HIGH 2
@@ -15,6 +16,7 @@
 #define D5 27
 #define D6 28
 #define D7 29
+#define SD_CARD_CS 53
 #define ROW_HIGH 49
 #define ROW_LOW 45
 #define COL_HIGH 37
@@ -28,6 +30,7 @@ void digitalWriteByte(int highPin, int lowPin, unsigned char byte, int highBit =
 class LEDMatrix;
 
 LEDMatrix* matrix;
+File file;
 
 void setPinMode(int highPin, int lowPin, int MODE) {
   for (int i=lowPin;i<=highPin;i++) {
@@ -45,7 +48,7 @@ void digitalWriteByte(int highPin, int lowPin, unsigned char byte, int highBit =
 }
 
 void printScoreInLCD(int32_t score) {
-  
+
 }
 
 class Piece {
@@ -352,6 +355,8 @@ public:
 };
 class LEDMatrix {
 public:
+  String highScorer;
+  int32_t highScore;
   int fallSpeed;
   int divSecCount;
   ThumbController* thumbController;
@@ -706,6 +711,8 @@ public:
   }
   //
   LEDMatrix() {
+    highScorer = "Player";
+    highScore = 0;
     fallSpeed = SPEED_LOW;
     rotateOffset = 0;
     divSecCount = 0;
@@ -715,9 +722,7 @@ public:
     colSize = 8;
     buffer = 4;
     thumbController = new ThumbController();
-    displayBoard = new unsigned char[rowSize+buffer];
-    clearDisplayBoard();
-    currentPiece = generateRandomPiece();
+    displayBoard = new unsigned char[rowSize+buffer];    
   }
   bool getIsGameOver() {
     return isGameOver;
@@ -764,9 +769,36 @@ public:
       rowVal++;
     }
   }
+  void menuSelect() {
+    // while (true) {
+
+    // }
+    // isGameOver = false;
+    // file.seek(0);
+    // if file {
+    //   Serial.println("file reading");
+    //   if (file.available()) {
+    //     matrix->highScorer = file.readStringUntil('\n');
+        
+    //   }
+    //   if (file.available()) {
+    //     matrix->highScore = file.parseInt();
+        
+    //   }
+    // }
+    // Serial.println(matrix->highScorer);
+    // Serial.println(matrix->highScore);
+  }
   void playGame() {
+    //menuSelect();
     clearDisplayBoard();
+    currentPiece = generateRandomPiece();
     score = 0;
+    fallSpeed = SPEED_LOW;
+    rotateOffset = 0;
+    divSecCount = 0;
+    isGameOver = false;
+
     TCCR1A = 0;// set entire TCCR1A register to 0
     TCCR1B = 0;// same for TCCR1B
 
@@ -782,54 +814,25 @@ public:
 
     sei();//allow interrupts
     TCNT1  = 0;
+
     while(!isGameOver) {
-      // for (int i=0;i<FRAME_RATE;i++) {
-        char s[100];
-        outputDisplayBoard();
-        // thumbController->xVal = analogRead(X_THUMB);
-        // thumbController->yVal = analogRead(Y_THUMB);
-        // thumbController->yCount++;
-        // thumbController->yTotalValue += thumbController->yVal;
-        // thumbController->xCount++;
-        // thumbController->xTotalValue += thumbController->xVal;
-        //sprintf(s,"xCount: %d xVal: %d xTotalValue: %d\n",thumbController->xCount,thumbController->xVal,thumbController->xTotalValue);
-        //Serial.print(s);
-        // if (i%27==25) {
-        //   if (abs((thumbController->yTotalValue/(float)thumbController->yCount)-504)>abs((thumbController->xTotalValue/(float)thumbController->xCount)-504)) {
-        //     if (thumbController->yTotalValue/(float)thumbController->yCount>650) {
-        //       if (permitMoveLeft()) currentPiece->setOriginC(currentPiece->getOriginC()+1);
-        //     }
-        //     else if (thumbController->yTotalValue/(float)thumbController->yCount<350) {
-        //       if (permitMoveRight()) currentPiece->setOriginC(currentPiece->getOriginC()-1);
-        //     }
-        //   }
-        //   else {
-        //     if (thumbController->xTotalValue/(float)thumbController->xCount<350) {
-        //       if (permitActionRotate()) currentPiece->rotatePieceBoard();
-        //     }
-        //     else if (thumbController->xTotalValue/(float)thumbController->xCount>650) {
-        //       if (permitMoveDown()) currentPiece->setOriginR(currentPiece->getOriginR()+1);
-        //     }
-        //   }
-        //   thumbController->reset();
-        // }
-      }
-      // Serial.print("Origin: ");
-      // Serial.print(currentPiece->getOriginC());
-      // Serial.print("\n");
-      // if (permitMoveDown()) {
-      //   currentPiece->setOriginR(currentPiece->getOriginR()+1);
-      // }
-      // else {
-      //   printCurrentPiece();
-      //   removeFilledRowsAndAddScore();
-      //   if (gameOver()) {
-      //     cli();
-      //     break;
-      //   }
-      // }
-    //}
+      outputDisplayBoard();
+    }
     // write score to sd card
+    // Serial.print("Score to write: ");
+    // Serial.println(score);
+    // Serial.print("HighScore to write: ");
+    // Serial.println(highScore);    
+
+    if (score>highScore) {
+      // input name
+      highScorer = "zulkar";
+      highScore = score;
+      file = SD.open("score.txt", O_TRUNC | FILE_WRITE);
+      file.println(highScorer);
+      file.println(highScore);
+      file.close();
+    }
   }
 };
 
@@ -915,6 +918,31 @@ void setup() {
   digitalWrite(THUMB_PRESS,HIGH);
   Serial.begin(9600);
   matrix = new LEDMatrix();
+  // sd card
+  if (!SD.begin(SD_CARD_CS)) {
+    Serial.println("Can't open sdcard!");
+    while (1);
+  }
+  file = SD.open("score.txt", FILE_WRITE);
+  if (file) {
+    file.seek(0);
+    if (file.available()) {
+      
+      matrix->highScorer = file.readStringUntil('\n');
+    }
+    if (file.available()) {
+      matrix->highScore = file.parseInt();
+    }
+  }
+  file.close();
+  Serial.println(matrix->highScorer);
+  Serial.println(matrix->highScore);
+  // //
+  // file.seek(0);
+  // file.println("mohaimin");
+  // file.println(30);
+  // file.close();
+  
 }
 
 void loop() {
