@@ -2,7 +2,7 @@
 #include<stdio.h>
 #include<SD.h>
 #include<SPI.h>
-//#define FRAME_RATE 80
+#include<LiquidCrystal.h>
 #define SPEED_LOW 7
 #define SPEED_HIGH 2
 #define LEVEL_1_SCORE 20
@@ -31,7 +31,9 @@ class LEDMatrix;
 
 LEDMatrix* matrix;
 File file;
+LiquidCrystal lcd(RS,EN,D4,D5,D6,D7);
 
+void printScoreAndNextPieceInLCD();
 void setPinMode(int highPin, int lowPin, int MODE) {
   for (int i=lowPin;i<=highPin;i++) {
     pinMode(i,MODE);
@@ -47,9 +49,46 @@ void digitalWriteByte(int highPin, int lowPin, unsigned char byte, int highBit =
     }
 }
 
-void printScoreInLCD(int32_t score) {
+// byte continuesign[8] = {
+//   B10000,
+//   B11000,
+//   B11100,
+//   B11110,
+//   B11110,
+//   B11100,
+//   B11000,
+//   B10000
+// };
 
-}
+// byte newgamesign[8]={
+
+//   B11000,
+//   B11100,
+//   B11010,
+//   B10001,
+//   B11011,
+//   B11110,
+//   B11100,
+//   B11000,
+
+// };
+
+// void ShowStartMenu()
+// {
+//   lcd.begin(16, 2);
+//   // lcd.setCursor(col, row)
+//   lcd.setCursor(0, 1);
+//   if(checkForPausedGame())
+//   {
+//     lcd.print("CONTINUE");
+//     lcd.setCursor(9, 0);
+    
+//   }
+
+//   lcd.print("NEW GAME")
+
+
+// }
 
 class Piece {
 protected:
@@ -58,6 +97,8 @@ protected:
   int colSize;
   int originR;
   int originC;
+  int id;
+  String name;
 public:
   Piece() {
     rowSize = 4;
@@ -71,6 +112,12 @@ public:
   }
   unsigned char* getPieceBoard() {
     return pieceBoard;
+  }
+  int getId() {
+    return id;
+  }
+  String getName() {
+    return name;
   }
   int getRowSize() {
     return rowSize;
@@ -120,8 +167,6 @@ public:
 };
 class ZPiece: public Piece {
 private:
-  int id;
-  String name;
   void setInitialPieceBoard() {
     // this is the design of the shape
     // first 4 bit are ignored, keep them 0
@@ -149,8 +194,6 @@ public:
 };
 class SPiece: public Piece {
 private:
-  int id;
-  String name;
   void setInitialPieceBoard() {
     // this is the design of the shape
     // first 4 bit are ignored, keep them 0
@@ -178,8 +221,6 @@ public:
 };
 class TPiece: public Piece {
 private:
-  int id;
-  String name;
   void setInitialPieceBoard() {
     // this is the design of the shape
     // first 4 bit are ignored, keep them 0
@@ -207,8 +248,6 @@ public:
 };
 class JPiece: public Piece {
 private:
-  int id;
-  String name;
   void setInitialPieceBoard() {
     // this is the design of the shape
     // first 4 bit are ignored, keep them 0
@@ -236,8 +275,6 @@ public:
 };
 class LPiece: public Piece {
 private:
-  int id;
-  String name;
   void setInitialPieceBoard() {
     // this is the design of the shape
     // first 4 bit are ignored, keep them 0
@@ -265,8 +302,6 @@ public:
 };
 class OPiece: public Piece {
 private:
-  int id;
-  String name;
   void setInitialPieceBoard() {
     // this is the design of the shape
     // first 4 bit are ignored, keep them 0
@@ -294,8 +329,6 @@ public:
 };
 class IPiece: public Piece {
 private:
-  int id;
-  String name;
   void setInitialPieceBoard() {
     // this is the design of the shape
     // first 4 bit are ignored, keep them 0
@@ -367,6 +400,7 @@ public:
   int buffer;
   int rotateOffset;
   Piece* currentPiece;
+  Piece* nextPiece;
   bool isGameOver;
   Piece* generateRandomPiece() {
     // there are 7 pieces in total
@@ -384,7 +418,8 @@ public:
       
     }
     delete currentPiece;
-    currentPiece = generateRandomPiece();
+    currentPiece = nextPiece;
+    nextPiece = generateRandomPiece();
   }
   bool permitMoveDown() {
     bool ok = true;
@@ -695,7 +730,7 @@ public:
     //char sscore[100];
     //sprintf(sscore,"%"PRId64,score);
     Serial.println(score);
-    printScoreInLCD(score);
+    printScoreAndNextPieceInLCD();
     //if (removeRowCount<4) score+=removeRowCount*(removeRowCount+1);  // if not 4 rows then add 1 one each row
     // else score = score<<2; // multiply by 4 for tetris
   }
@@ -793,11 +828,16 @@ public:
     //menuSelect();
     clearDisplayBoard();
     currentPiece = generateRandomPiece();
+    nextPiece = generateRandomPiece();
+
     score = 0;
     fallSpeed = SPEED_LOW;
     rotateOffset = 0;
     divSecCount = 0;
     isGameOver = false;
+
+    printScoreAndNextPieceInLCD();
+
 
     TCCR1A = 0;// set entire TCCR1A register to 0
     TCCR1B = 0;// same for TCCR1B
@@ -828,10 +868,10 @@ public:
       // input name
       highScorer = "zulkar";
       highScore = score;
-      file = SD.open("score.txt", O_TRUNC | FILE_WRITE);
-      file.println(highScorer);
-      file.println(highScore);
-      file.close();
+      // file = SD.open("score.txt", O_TRUNC | FILE_WRITE);
+      // file.println(highScorer);
+      // file.println(highScore);
+      // file.close();
     }
   }
 };
@@ -905,6 +945,18 @@ ISR(TIMER1_COMPA_vect){//timer1 interrupt 1Hz toggles pin 13 (LED)
   TCNT1  = 0;
 }
 
+//lcd codes
+void printScoreAndNextPieceInLCD() {
+  lcd.setCursor(0,0);
+  lcd.print("Score: ");
+  char sc[10];
+  itoa(matrix->score,sc,10);
+  lcd.print(sc);
+  lcd.setCursor(0,1);
+  lcd.print("Next: ");
+  lcd.print(matrix->nextPiece->getName());
+}
+
 
 // setup and loop
 void setup() {
@@ -919,29 +971,27 @@ void setup() {
   Serial.begin(9600);
   matrix = new LEDMatrix();
   // sd card
-  if (!SD.begin(SD_CARD_CS)) {
-    Serial.println("Can't open sdcard!");
-    while (1);
-  }
-  file = SD.open("score.txt", FILE_WRITE);
-  if (file) {
-    file.seek(0);
-    if (file.available()) {
+  // if (!SD.begin(SD_CARD_CS)) {
+  //   Serial.println("Can't open sdcard!");
+  //   while (1);
+  // }
+  // file = SD.open("score.txt", FILE_WRITE);
+  // if (file) {
+  //   file.seek(0);
+  //   if (file.available()) {
       
-      matrix->highScorer = file.readStringUntil('\n');
-    }
-    if (file.available()) {
-      matrix->highScore = file.parseInt();
-    }
-  }
-  file.close();
-  Serial.println(matrix->highScorer);
-  Serial.println(matrix->highScore);
-  // //
-  // file.seek(0);
-  // file.println("mohaimin");
-  // file.println(30);
+  //     matrix->highScorer = file.readStringUntil('\n');
+  //   }
+  //   if (file.available()) {
+  //     matrix->highScore = file.parseInt();
+  //   }
+  // }
   // file.close();
+  // Serial.println(matrix->highScorer);
+  // Serial.println(matrix->highScore);
+
+  // lcd
+  lcd.begin(16,2);
   
 }
 
