@@ -24,7 +24,7 @@
 #define ROW_ENABLE 44
 #define X_THUMB A0
 #define Y_THUMB A1
-#define THUMB_PRESS 22
+#define THUMB_PRESS 21
 void setPinMode(int highPin, int lowPin, int MODE);
 void digitalWriteByte(int highPin, int lowPin, unsigned char byte, int highBit = 7, int lowBit = 0);
 class LEDMatrix;
@@ -33,7 +33,6 @@ LEDMatrix* matrix;
 File file;
 LiquidCrystal lcd(RS,EN,D4,D5,D6,D7);
 
-void printScoreAndNextPieceInLCD();
 void setPinMode(int highPin, int lowPin, int MODE) {
   for (int i=lowPin;i<=highPin;i++) {
     pinMode(i,MODE);
@@ -49,29 +48,29 @@ void digitalWriteByte(int highPin, int lowPin, unsigned char byte, int highBit =
     }
 }
 
-// byte continuesign[8] = {
-//   B10000,
-//   B11000,
-//   B11100,
-//   B11110,
-//   B11110,
-//   B11100,
-//   B11000,
-//   B10000
-// };
+byte continuesign[8] = {
+  B10000,
+  B11000,
+  B11100,
+  B11110,
+  B11110,
+  B11100,
+  B11000,
+  B10000
+};
 
-// byte newgamesign[8]={
+byte newgamesign[8]={
 
-//   B11000,
-//   B11100,
-//   B11010,
-//   B10001,
-//   B11011,
-//   B11110,
-//   B11100,
-//   B11000,
+  B11000,
+  B11100,
+  B11010,
+  B10001,
+  B11011,
+  B11110,
+  B11100,
+  B11000,
 
-// };
+};
 
 // void ShowStartMenu()
 // {
@@ -372,12 +371,17 @@ public:
   int yTotalValue;
   int xVal;
   int yVal;
+  bool pressed;
+  bool thumbUnpressed;
   ThumbController() {
     xCount = yCount = xTotalValue = yTotalValue = xVal = yVal = 0;
     hasComeToMiddle = true;
+    pressed = true;
+    thumbUnpressed = true;
   }
   void reset() {
     xCount = yCount = xTotalValue = yTotalValue = xVal = yVal = 0;
+    pressed = true;
     //Serial.print("Resetting --------------------------\n");
   }
 };
@@ -398,6 +402,9 @@ public:
   Piece* nextPiece;
   bool isGameOver;
   bool isContinueAvailable;
+  bool inMenu;
+  bool isMusicOff;
+  int currentMenuPosition;
   Piece* generateRandomPiece() {
     // there are 7 pieces in total
     int randomNumber = random(7);
@@ -756,6 +763,9 @@ public:
     thumbController = new ThumbController();
     displayBoard = new unsigned char[rowSize+buffer];
     isContinueAvailable = false;   
+    inMenu = true;
+    currentMenuPosition = 4;
+    isMusicOff = false;
   }
   bool getIsGameOver() {
     return isGameOver;
@@ -802,74 +812,164 @@ public:
       rowVal++;
     }
   }
-  void menuSelect() {
-    // while (true) {
-
-    // }
-    // isGameOver = false;
-    // file.seek(0);
-    // if file {
-    //   Serial.println("file reading");
-    //   if (file.available()) {
-    //     matrix->highScorer = file.readStringUntil('\n');
-        
-    //   }
-    //   if (file.available()) {
-    //     matrix->highScore = file.parseInt();
-        
-    //   }
-    // }
-    // Serial.println(matrix->highScorer);
-    // Serial.println(matrix->highScore);
+  //lcd codes
+  void printScoreAndNextPieceInLCD() {
+    lcd.setCursor(0,0);
+    String s = "Score: ";
+    s += score;
+    for (int p=s.length();p<16;p++) s+=" ";
+    lcd.print(s);
+    lcd.setCursor(0,1);
+    s = "Next: ";
+    s += matrix->nextPiece->getName();
+    for (int p=s.length();p<16;p++) s+=" ";
+    lcd.print(s);
+    
+    lcd.println();
   }
-  void playGame() {
-    //menuSelect();
+  void menuSelect() {
+    int show = 1;
+    int cnt = 0;
+    while (inMenu) {
+      lcd.setCursor(0,0);
+      if (isContinueAvailable && currentMenuPosition==0) {
+        lcd.print("Resume          ");
+      }
+      else if (currentMenuPosition==4) {
+        lcd.print("New Game        ");
+      }
+      else if (currentMenuPosition==8) {
+        String s = "Music: ";
+        if (isMusicOff) {
+          s += "Off";
+        }
+        else {
+          s += "On ";
+        }
+        s += "      ";
+        lcd.print(s);
+      }
+      else if (currentMenuPosition==12) {
+        if (cnt<5) {
+          String s = "High Score: ";
+          s += highScore;
+          for (int p=s.length();p<16;p++) s+=" ";
+          lcd.print(s);
+        }
+        else {
+          String s = "By ";
+          s += highScorer;
+          for (int p=s.length();p<16;p++) s+=" ";
+          lcd.print(s);
+        }
+      }
+      if (show==1) {
+        lcd.setCursor(0, 1);
+        if (isContinueAvailable) {
+          lcd.write(1);
+          lcd.write(1);
+        }
+        else {
+          lcd.write("  ");
+        }
+        lcd.print("  ");
+        lcd.setCursor(4, 1);
+        lcd.write(2);
+        lcd.write(2);
+        lcd.print("  ");
+        lcd.setCursor(8, 1);
+        lcd.write(2);
+        lcd.write(2);
+        lcd.print("  ");
+        lcd.setCursor(12, 1);
+        lcd.write(2);
+        lcd.write(2);
+        lcd.print("  ");
+      }
+      else {
+        lcd.setCursor(currentMenuPosition, 1);
+        lcd.print("  ");
+      }
+      delay(300);
+      show *= -1;
+      cnt = (cnt+1)%10;
+    }
+  }
+  void initializeNewGame() {
     clearDisplayBoard();
     currentPiece = generateRandomPiece();
     nextPiece = generateRandomPiece();
-
     score = 0;
     fallSpeed = SPEED_LOW;
     rotateOffset = 0;
     divSecCount = 0;
     isGameOver = false;
+    isContinueAvailable = true;    
+  }
+  void playGame() {
+    while (true) {
+      TCCR1A = 0;// set entire TCCR1A register to 0
+      TCCR1B = 0;// same for TCCR1B
 
-    printScoreAndNextPieceInLCD();
+      // set compare match register for 1hz increments
+      OCR1A = 1562; // 1/5th of a second// = (16*10^6) / (1*1024) - 1 (must be <65536)
+      // turn on CTC mode
+      TCCR1B |= (1 << WGM12);
+      // Set CS12 and CS10 bits for 1024 prescaler
+      TCCR1B |= (1 << CS12) | (1 << CS10);  
+      // enable timer compare interrupt
+      
+      TIMSK1 |= (1 << OCIE1A);
+
+      sei();
+      TCNT1  = 0;
+
+      menuSelect();
+      cli();
+
+      printScoreAndNextPieceInLCD();
 
 
-    TCCR1A = 0;// set entire TCCR1A register to 0
-    TCCR1B = 0;// same for TCCR1B
+      TCCR1A = 0;// set entire TCCR1A register to 0
+      TCCR1B = 0;// same for TCCR1B
 
-    // set compare match register for 1hz increments
-    OCR1A = 1562; // 1/5th of a second// = (16*10^6) / (1*1024) - 1 (must be <65536)
-    // turn on CTC mode
-    TCCR1B |= (1 << WGM12);
-    // Set CS12 and CS10 bits for 1024 prescaler
-    TCCR1B |= (1 << CS12) | (1 << CS10);  
-    // enable timer compare interrupt
-    
-    TIMSK1 |= (1 << OCIE1A);
+      // set compare match register for 1hz increments
+      OCR1A = 1562; // 1/5th of a second// = (16*10^6) / (1*1024) - 1 (must be <65536)
+      // turn on CTC mode
+      TCCR1B |= (1 << WGM12);
+      // Set CS12 and CS10 bits for 1024 prescaler
+      TCCR1B |= (1 << CS12) | (1 << CS10);  
+      // enable timer compare interrupt
+      
+      TIMSK1 |= (1 << OCIE1A);
 
-    sei();//allow interrupts
-    TCNT1  = 0;
+      sei();
+      TCNT1  = 0;
 
-    while(!isGameOver) {
-      outputDisplayBoard();
-    }
-    // write score to sd card
-    // Serial.print("Score to write: ");
-    // Serial.println(score);
-    // Serial.print("HighScore to write: ");
-    // Serial.println(highScore);    
+      while(!inMenu && !isGameOver) {
+        outputDisplayBoard();
+      }
+      cli();
+      // write score to sd card
+      // Serial.print("Score to write: ");
+      // Serial.println(score);
+      // Serial.print("HighScore to write: ");
+      // Serial.println(highScore);    
+      if (isGameOver) {
+          isContinueAvailable = false;
+          currentMenuPosition = 4;
+          inMenu = true;
+        if (score>highScore) {
 
-    if (score>highScore) {
-      // input name
-      highScorer = "zulkar";
-      highScore = score;
-      // file = SD.open("score.txt", O_TRUNC | FILE_WRITE);
-      // file.println(highScorer);
-      // file.println(highScore);
-      // file.close();
+          // input name
+          highScorer = "zulkar";
+          highScore = score;
+          // file = SD.open("score.txt", O_TRUNC | FILE_WRITE);
+          // file.println(highScorer);
+          // file.println(highScore);
+          // file.close();
+        }
+      }
     }
   }
 };
@@ -878,25 +978,78 @@ ISR(TIMER1_COMPA_vect){//timer1 interrupt 1Hz toggles pin 13 (LED)
 //generates pulse wave of frequency 1Hz/2 = 0.5kHz (takes two cycles for full wave- toggle high then toggle low)
   cli();
   matrix->divSecCount++;
-  if (matrix->divSecCount%matrix->fallSpeed==0) {
-    matrix->divSecCount = 0;
-    if (matrix->permitMoveDown()) {
-      matrix->currentPiece->setOriginR(matrix->currentPiece->getOriginR()+1);
-    }
-    else {
-      matrix->printCurrentPiece();
-      matrix->removeFilledRowsAndAddScore();
-      if (matrix->gameOver()) {
-        cli();
-        matrix->setIsGameOver(true);
+  if (!matrix->inMenu) {
+    if (matrix->divSecCount%matrix->fallSpeed==0) {
+      matrix->divSecCount = 0;
+      if (matrix->permitMoveDown()) {
+        matrix->currentPiece->setOriginR(matrix->currentPiece->getOriginR()+1);
+      }
+      else {
+        matrix->printCurrentPiece();
+        matrix->removeFilledRowsAndAddScore();
+        if (matrix->gameOver()) {
+          matrix->setIsGameOver(true);
+        }
       }
     }
+    //else {
+      matrix->thumbController->xVal = analogRead(X_THUMB);
+      matrix->thumbController->yVal = analogRead(Y_THUMB);
+      matrix->thumbController->pressed = digitalRead(THUMB_PRESS);
+      if (matrix->thumbController->pressed) {
+        matrix->thumbController->thumbUnpressed = true;
+      }
+      if (matrix->thumbController->xVal<600 && matrix->thumbController->xVal>400) {
+        matrix->thumbController->hasComeToMiddle = true;
+      }
+      matrix->thumbController->yCount++;
+      matrix->thumbController->yTotalValue += matrix->thumbController->yVal;
+      matrix->thumbController->xCount++;
+      matrix->thumbController->xTotalValue += matrix->thumbController->xVal;
+      int yAvg = matrix->thumbController->yTotalValue/matrix->thumbController->yCount;
+      int xAvg = matrix->thumbController->xTotalValue/matrix->thumbController->xCount;
+      if (!matrix->thumbController->pressed) {
+        if (matrix->thumbController->thumbUnpressed) {
+          matrix->inMenu = true;
+          matrix->currentMenuPosition = 0;
+          matrix->thumbController->thumbUnpressed = false;
+        }
+      }
+      else if (abs(yAvg-504)>abs(xAvg-504)) {
+        if (yAvg>650) {
+          if (matrix->permitMoveLeft()) matrix->currentPiece->setOriginC(matrix->currentPiece->getOriginC()+1);
+        }
+        else if (yAvg<350) {
+          if (matrix->permitMoveRight()) matrix->currentPiece->setOriginC(matrix->currentPiece->getOriginC()-1);
+        }
+      }
+      else {
+        if (xAvg<350) {
+          if (matrix->thumbController->hasComeToMiddle && matrix->permitActionRotateAdvanced()) {
+            matrix->currentPiece->rotatePieceBoard();
+            matrix->currentPiece->setOriginC(matrix->currentPiece->getOriginC()-matrix->rotateOffset);
+            matrix->thumbController->hasComeToMiddle = false;
+          }
+        }
+        else if (xAvg>650) {
+          if (matrix->permitMoveDown()) matrix->currentPiece->setOriginR(matrix->currentPiece->getOriginR()+1);
+        }
+      }
+      matrix->thumbController->reset();
+
+    //}
   }
   else {
+
+    matrix->divSecCount = 0;
     matrix->thumbController->xVal = analogRead(X_THUMB);
     matrix->thumbController->yVal = analogRead(Y_THUMB);
-    if (matrix->thumbController->xVal<600 && matrix->thumbController->xVal>400) {
+    matrix->thumbController->pressed = digitalRead(THUMB_PRESS);
+    if (matrix->thumbController->yVal<600 && matrix->thumbController->yVal>400) {
       matrix->thumbController->hasComeToMiddle = true;
+    }
+    if (matrix->thumbController->pressed) {
+      matrix->thumbController->thumbUnpressed = true;
     }
     matrix->thumbController->yCount++;
     matrix->thumbController->yTotalValue += matrix->thumbController->yVal;
@@ -904,35 +1057,37 @@ ISR(TIMER1_COMPA_vect){//timer1 interrupt 1Hz toggles pin 13 (LED)
     matrix->thumbController->xTotalValue += matrix->thumbController->xVal;
     int yAvg = matrix->thumbController->yTotalValue/matrix->thumbController->yCount;
     int xAvg = matrix->thumbController->xTotalValue/matrix->thumbController->xCount;
-    //Serial.print("yAvg: ");
-    //Serial.print(yAvg);
-    // Serial.print("\nxAvg: ");
-    //  Serial.print(xAvg);
-    // Serial.print("\n"); 
-     char s[100];
-    // Serial.print("Avg printint\n");
-    //sprintf(s,"xCount: %d xTotalVal: %d xAvg: %d\n",matrix->thumbController->xCount,matrix->thumbController->xTotalValue,xAvg);
-    //Serial.print(s);
-    if (abs(yAvg-504)>abs(xAvg-504)) {
-      if (yAvg>650) {
-        if (matrix->permitMoveLeft()) matrix->currentPiece->setOriginC(matrix->currentPiece->getOriginC()+1);
-      }
-      else if (yAvg<350) {
-        if (matrix->permitMoveRight()) matrix->currentPiece->setOriginC(matrix->currentPiece->getOriginC()-1);
+    if (!matrix->thumbController->pressed) {
+      if (matrix->thumbController->thumbUnpressed) {
+        Serial.println("Thumb pressed");
+        if (matrix->currentMenuPosition==0) {
+          //matrix->initializeResumeData();
+          matrix->inMenu = false;    
+        }
+        else if (matrix->currentMenuPosition==4) {
+          matrix->initializeNewGame();
+          matrix->inMenu = false;
+        }
+        else if (matrix->currentMenuPosition==8) {
+          matrix->isMusicOff = !matrix->isMusicOff;
+        }
+        matrix->thumbController->thumbUnpressed = false;
       }
     }
-    else {
-      if (xAvg<350) {
-        if (matrix->thumbController->hasComeToMiddle && matrix->permitActionRotateAdvanced()) {
-          matrix->currentPiece->rotatePieceBoard();
-          //Serial.print("Rotate offset: ");
-          //Serial.println(matrix->rotateOffset);
-          matrix->currentPiece->setOriginC(matrix->currentPiece->getOriginC()-matrix->rotateOffset);
+    else if (abs(yAvg-504)>abs(xAvg-504)) {
+      if (matrix->thumbController->hasComeToMiddle) {
+        if (yAvg>650) {
+          //left
+          matrix->currentMenuPosition = (matrix->currentMenuPosition-4+16)%16;
+          if (!matrix->isContinueAvailable && matrix->currentMenuPosition==0) matrix->currentMenuPosition = 12;
           matrix->thumbController->hasComeToMiddle = false;
         }
-      }
-      else if (xAvg>650) {
-        if (matrix->permitMoveDown()) matrix->currentPiece->setOriginR(matrix->currentPiece->getOriginR()+1);
+        else if (yAvg<350) {
+          // right
+          matrix->currentMenuPosition = (matrix->currentMenuPosition+4)%16;
+          if (!matrix->isContinueAvailable && matrix->currentMenuPosition==0) matrix->currentMenuPosition = 4;
+          matrix->thumbController->hasComeToMiddle = false;
+        }
       }
     }
     matrix->thumbController->reset();
@@ -942,19 +1097,6 @@ ISR(TIMER1_COMPA_vect){//timer1 interrupt 1Hz toggles pin 13 (LED)
   sei();//allow interrupts
   TCNT1  = 0;
 }
-
-//lcd codes
-void printScoreAndNextPieceInLCD() {
-  lcd.setCursor(0,0);
-  lcd.print("Score: ");
-  char sc[10];
-  itoa(matrix->score,sc,10);
-  lcd.print(sc);
-  lcd.setCursor(0,1);
-  lcd.print("Next: ");
-  lcd.print(matrix->nextPiece->getName());
-}
-
 
 // setup and loop
 void setup() {
@@ -971,7 +1113,7 @@ void setup() {
   // sd card
   // if (!SD.begin(SD_CARD_CS)) {
   //   Serial.println("Can't open sdcard!");
-  //   while (1);
+  //   //while (true);
   // }
   // file = SD.open("score.txt", FILE_WRITE);
   // if (file) {
@@ -1029,12 +1171,14 @@ void setup() {
   //     }
   //   }
   //   matrix->isContinueAvailable = true;
+  //   matrix->currentMenuPosition = 0;
   // }
   // file.close();
   // file = SD.open("state.txt", O_TRUNC | FILE_WRITE);
   // file.close();
-
   // lcd
+  lcd.createChar(1, continuesign);
+  lcd.createChar(2, newgamesign);
   lcd.begin(16,2);
   
 }
