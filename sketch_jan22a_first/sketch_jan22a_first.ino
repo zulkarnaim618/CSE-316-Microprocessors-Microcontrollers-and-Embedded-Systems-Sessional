@@ -1,6 +1,7 @@
 #include<string.h>
 #include<stdio.h>
 #include<inttypes.h>
+// #include<LiquidCrystal.h>
 //#define FRAME_RATE 80
 #define SPEED_LOW 7
 #define SPEED_HIGH 2
@@ -28,6 +29,7 @@ void digitalWriteByte(int highPin, int lowPin, unsigned char byte, int highBit =
 class LEDMatrix;
 
 LEDMatrix* matrix;
+// LiquidCrystal lcd(RS,EN,D4,D5,D6,D7);?
 
 void setPinMode(int highPin, int lowPin, int MODE) {
   for (int i=lowPin;i<=highPin;i++) {
@@ -43,10 +45,73 @@ void digitalWriteByte(int highPin, int lowPin, unsigned char byte, int highBit =
       ch = ch<<1;
     }
 }
+//lcd codes
+
+
+
+
+
+
+
+
+#include<LiquidCrystal.h>
+
+LiquidCrystal lcd(RS,EN,D4,D5,D6,D7);
 
 void printScoreInLCD(int32_t score) {
+  lcd.begin(16,2);
+  lcd.setCursor(0,0);
+  lcd.print("Your Score is: ");
+  lcd.setCursor(0,1);
+  int s=score;
+  char sc[16];
+  itoa(s,sc,10);  
+  lcd.print(sc);
+  
   
 }
+
+
+// byte continuesign[8] = {
+//   B10000,
+//   B11000,
+//   B11100,
+//   B11110,
+//   B11110,
+//   B11100,
+//   B11000,
+//   B10000
+// };
+
+// byte newgamesign[8]={
+
+//   B11000,
+//   B11100,
+//   B11010,
+//   B10001,
+//   B11011,
+//   B11110,
+//   B11100,
+//   B11000,
+
+// };
+
+// void ShowStartMenu()
+// {
+//   lcd.begin(16, 2);
+//   // lcd.setCursor(col, row)
+//   lcd.setCursor(0, 1);
+//   if(checkForPausedGame())
+//   {
+//     lcd.print("CONTINUE");
+//     lcd.setCursor(9, 0);
+    
+//   }
+
+//   lcd.print("NEW GAME")
+
+
+// }
 
 class Piece {
 protected:
