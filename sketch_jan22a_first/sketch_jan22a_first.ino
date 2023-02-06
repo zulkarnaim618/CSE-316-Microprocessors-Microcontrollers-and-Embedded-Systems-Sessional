@@ -91,7 +91,7 @@ void digitalWriteByte(int highPin, int lowPin, unsigned char byte, int highBit =
 // }
 
 class Piece {
-protected:
+public:
   unsigned char* pieceBoard;
   int rowSize;
   int colSize;
@@ -99,8 +99,9 @@ protected:
   int originC;
   int id;
   String name;
-public:
+  int rotateOrientation;
   Piece() {
+    rotateOrientation = 0;
     rowSize = 4;
     colSize = 4;
     originR = 0;
@@ -139,6 +140,7 @@ public:
   }
   void rotatePieceBoard() {
     // we always rotate to the left
+    rotateOrientation = (rotateOrientation+1)%4;
     unsigned char* temp = new unsigned char[rowSize];
     for (int i=0;i<rowSize;i++) {
       temp[i] = 0b00000000;
@@ -178,11 +180,10 @@ private:
     pieceBoard[3] = 0b00000000;
   }
 public:
-  ZPiece() {
+  ZPiece(int randomNumber) {
     id = 0;
     name = "Z-Shape";
     setInitialPieceBoard();
-    int randomNumber = random(4);
     for (int i=0;i<randomNumber;i++) {
       rotatePieceBoard();
     }
@@ -205,11 +206,10 @@ private:
     pieceBoard[3] = 0b00000000;
   }
 public:
-  SPiece() {
+  SPiece(int randomNumber) {
     id = 1;
     name = "S-Shape";
     setInitialPieceBoard();
-    int randomNumber = random(4);
     for (int i=0;i<randomNumber;i++) {
       rotatePieceBoard();
     }
@@ -232,11 +232,10 @@ private:
     pieceBoard[3] = 0b00000000;
   }
 public:
-  TPiece() {
+  TPiece(int randomNumber) {
     id = 2;
     name = "T-Shape";
     setInitialPieceBoard();
-    int randomNumber = random(4);
     for (int i=0;i<randomNumber;i++) {
       rotatePieceBoard();
     }
@@ -259,11 +258,10 @@ private:
     pieceBoard[3] = 0b00000110;
   }
 public:
-  JPiece() {
+  JPiece(int randomNumber) {
     id = 3;
     name = "J-Shape";
     setInitialPieceBoard();
-    int randomNumber = random(4);
     for (int i=0;i<randomNumber;i++) {
       rotatePieceBoard();
     }
@@ -286,11 +284,10 @@ private:
     pieceBoard[3] = 0b00000110;
   }
 public:
-  LPiece() {
+  LPiece(int randomNumber) {
     id = 4;
     name = "L-Shape";
     setInitialPieceBoard();
-    int randomNumber = random(4);
     for (int i=0;i<randomNumber;i++) {
       rotatePieceBoard();
     }
@@ -313,11 +310,10 @@ private:
     pieceBoard[3] = 0b00000000;
   }
 public:
-  OPiece() {
+  OPiece(int randomNumber) {
     id = 5;
     name = "O-Shape";
     setInitialPieceBoard();
-    int randomNumber = random(4);
     for (int i=0;i<randomNumber;i++) {
       rotatePieceBoard();
     }
@@ -340,11 +336,10 @@ private:
     pieceBoard[3] = 0b00000100;
   }
 public:
-  IPiece() {
+  IPiece(int randomNumber) {
     id = 6;
     name = "I-Shape";
     setInitialPieceBoard();
-    int randomNumber = random(4);
     for (int i=0;i<randomNumber;i++) {
       rotatePieceBoard();
     }
@@ -357,15 +352,15 @@ public:
 
 class PieceFactory {
 public:
-  static Piece* getPiece(int id) {
-    if (id==0) return new ZPiece();
-    else if (id==1) return new SPiece();
-    else if (id==2) return new TPiece();
-    else if (id==3) return new JPiece();
-    else if (id==4) return new LPiece();
-    else if (id==5) return new OPiece();
-    else if (id==6) return new IPiece();
-    return new ZPiece();
+  static Piece* getPiece(int id,int rotOri) {
+    if (id==0) return new ZPiece(rotOri);
+    else if (id==1) return new SPiece(rotOri);
+    else if (id==2) return new TPiece(rotOri);
+    else if (id==3) return new JPiece(rotOri);
+    else if (id==4) return new LPiece(rotOri);
+    else if (id==5) return new OPiece(rotOri);
+    else if (id==6) return new IPiece(rotOri);
+    return new ZPiece(rotOri);
   }
 };
 class ThumbController {
@@ -390,11 +385,11 @@ class LEDMatrix {
 public:
   String highScorer;
   int32_t highScore;
+  int32_t score;
   int fallSpeed;
   int divSecCount;
   ThumbController* thumbController;
   unsigned char* displayBoard;
-  int32_t score;
   int rowSize;
   int colSize;
   int buffer;
@@ -402,10 +397,12 @@ public:
   Piece* currentPiece;
   Piece* nextPiece;
   bool isGameOver;
+  bool isContinueAvailable;
   Piece* generateRandomPiece() {
     // there are 7 pieces in total
     int randomNumber = random(7);
-    return PieceFactory::getPiece(randomNumber);     
+    int rotOri = random(4);
+    return PieceFactory::getPiece(randomNumber,rotOri);     
   }
   void printCurrentPiece() {
     for (int i=0;i<currentPiece->getRowSize();i++) {
@@ -757,7 +754,8 @@ public:
     colSize = 8;
     buffer = 4;
     thumbController = new ThumbController();
-    displayBoard = new unsigned char[rowSize+buffer];    
+    displayBoard = new unsigned char[rowSize+buffer];
+    isContinueAvailable = false;   
   }
   bool getIsGameOver() {
     return isGameOver;
@@ -989,6 +987,52 @@ void setup() {
   // file.close();
   // Serial.println(matrix->highScorer);
   // Serial.println(matrix->highScore);
+  // int cid,crotOri,nid,nrotOri;
+  // file = SD.open("state.txt", FILE_WRITE);
+  // if (file) {
+  //   file.seek(0);
+  //   if (file.available()) {
+  //     matrix->score = file.parseInt();
+  //   }
+  //   if (file.available()) {
+  //     matrix->fallSpeed = file.parseInt();
+  //   }
+  //   if (file.available()) {
+  //     matrix->divSecCount = file.parseInt();
+  //   }
+  //   if (file.available()) {
+  //     cid = file.parseInt();
+  //   }
+  //   if (file.available()) {
+  //     crotOri = file.parseInt();
+  //   }
+  //   matrix->currentPiece = PieceFactor::getPiece(cid,crotOri);
+  //   if (file.available()) {
+  //     matrix->currentPiece->setOriginR(file.parseInt());
+  //   }
+  //   if (file.available()) {
+  //     matrix->currentPiece->setOriginC(file.parseInt());
+  //   }
+  //   if (file.available()) {
+  //     nid = file.parseInt();
+  //   }
+  //   if (file.available()) {
+  //     nrotOri = file.parseInt();
+  //   }
+  //   matrix->nextPiece = PieceFactor::getPiece(nid,nrotOri);
+  //   if (file.available()) {
+  //     matrix->isGameOver = file.parseInt(); // bool type
+  //   }
+  //   for (int i=0;i<matrix->rowSize+matrix->buffer;i++) {
+  //     if (file.available()) {
+  //       matrix->displayBoard[i] = file.parseInt(); //unsigned char check
+  //     }
+  //   }
+  //   matrix->isContinueAvailable = true;
+  // }
+  // file.close();
+  // file = SD.open("state.txt", O_TRUNC | FILE_WRITE);
+  // file.close();
 
   // lcd
   lcd.begin(16,2);
