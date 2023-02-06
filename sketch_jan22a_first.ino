@@ -1,13 +1,21 @@
 #include<string.h>
 #include<stdio.h>
-#define FRAME_RATE 80
+#include<inttypes.h>
+//#define FRAME_RATE 80
+#define SPEED_LOW 7
+#define SPEED_HIGH 2
+#define LEVEL_1_SCORE 20
+#define LEVEL_2_SCORE 40
+#define LEVEL_3_SCORE 55
+#define LEVEL_4_SCORE 70
+#define LEVEL_5_SCORE 80
 #define ROW_HIGH 49
 #define ROW_LOW 45
 #define COL_HIGH 37
 #define COL_LOW 30
 #define ROW_ENABLE 44
-#define X_THUMB 0
-#define Y_THUMB 1
+#define X_THUMB A0
+#define Y_THUMB A1
 #define THUMB_PRESS 22
 void setPinMode(int highPin, int lowPin, int MODE);
 void digitalWriteByte(int highPin, int lowPin, unsigned char byte, int highBit = 7, int lowBit = 0);
@@ -334,10 +342,11 @@ public:
 };
 class LEDMatrix {
 public:
+  int fallSpeed;
   int divSecCount;
   ThumbController* thumbController;
   unsigned char* displayBoard;
-  int64_t score;
+  int32_t score;
   int rowSize;
   int colSize;
   int buffer;
@@ -347,7 +356,7 @@ public:
   Piece* generateRandomPiece() {
     // there are 7 pieces in total
     int randomNumber = random(7);
-    return PieceFactory::getPiece(randomNumber);
+    return PieceFactory::getPiece(randomNumber);     
   }
   void printCurrentPiece() {
     for (int i=0;i<currentPiece->getRowSize();i++) {
@@ -649,15 +658,30 @@ public:
   void removeFilledRowsAndAddScore() {
     // check error in multiple row?
     int removeRowCount = 0;
+    bool recheck;
     for (int i=rowSize+buffer-1;i>=0;i--) {
-      if (displayBoard[i]==0b11111111) {
+      recheck = false;
+      if (i-removeRowCount>=0 && displayBoard[i-removeRowCount]==0b11111111) {
         removeRowCount++;
+        recheck = true;
       }
       if (i-removeRowCount>=0) displayBoard[i]=displayBoard[i-removeRowCount];
       else displayBoard[i] = 0b00000000;
+      if (recheck) i++;
     }
-    if (removeRowCount<4) score+=removeRowCount;  // if not 4 rows then add 1 one each row
-    else score = score<<2; // multiply by 4 for tetris
+    score+=removeRowCount*(removeRowCount+1);
+    if (score>LEVEL_5_SCORE) fallSpeed = 2;
+    else if (score>LEVEL_4_SCORE) fallSpeed = 3;
+    else if (score>LEVEL_3_SCORE) fallSpeed = 4;
+    else if (score>LEVEL_2_SCORE) fallSpeed = 5;
+    else if (score>LEVEL_1_SCORE) fallSpeed = 6;
+    else fallSpeed = 7;
+    Serial.print("Score: ");
+    //char sscore[100];
+    //sprintf(sscore,"%"PRId64,score);
+    Serial.println(score);
+    //if (removeRowCount<4) score+=removeRowCount*(removeRowCount+1);  // if not 4 rows then add 1 one each row
+    // else score = score<<2; // multiply by 4 for tetris
   }
   bool gameOver() {
     bool over = false;
@@ -671,6 +695,7 @@ public:
   }
   //
   LEDMatrix() {
+    fallSpeed = SPEED_LOW;
     rotateOffset = 0;
     divSecCount = 0;
     isGameOver = false;
@@ -801,7 +826,7 @@ ISR(TIMER1_COMPA_vect){//timer1 interrupt 1Hz toggles pin 13 (LED)
 //generates pulse wave of frequency 1Hz/2 = 0.5kHz (takes two cycles for full wave- toggle high then toggle low)
   cli();
   matrix->divSecCount++;
-  if (matrix->divSecCount%10==0) {
+  if (matrix->divSecCount%matrix->fallSpeed==0) {
     matrix->divSecCount = 0;
     if (matrix->permitMoveDown()) {
       matrix->currentPiece->setOriginR(matrix->currentPiece->getOriginR()+1);
@@ -870,7 +895,7 @@ ISR(TIMER1_COMPA_vect){//timer1 interrupt 1Hz toggles pin 13 (LED)
 // setup and loop
 void setup() {
   // high pin number always represents high bit and low pin number represents low bit
-  randomSeed(analogRead(10));
+  randomSeed(analogRead(A10));
   pinMode(ROW_ENABLE,OUTPUT);
   pinMode(THUMB_PRESS,INPUT);
   setPinMode(ROW_HIGH,ROW_LOW,OUTPUT);
