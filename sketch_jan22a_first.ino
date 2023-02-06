@@ -9,6 +9,12 @@
 #define LEVEL_3_SCORE 55
 #define LEVEL_4_SCORE 70
 #define LEVEL_5_SCORE 80
+#define RS 24
+#define EN 25
+#define D4 26
+#define D5 27
+#define D6 28
+#define D7 29
 #define ROW_HIGH 49
 #define ROW_LOW 45
 #define COL_HIGH 37
@@ -36,6 +42,10 @@ void digitalWriteByte(int highPin, int lowPin, unsigned char byte, int highBit =
       digitalWrite(i,(byte&ch?HIGH:LOW));
       ch = ch<<1;
     }
+}
+
+void printScoreInLCD(int32_t score) {
+  
 }
 
 class Piece {
@@ -680,6 +690,7 @@ public:
     //char sscore[100];
     //sprintf(sscore,"%"PRId64,score);
     Serial.println(score);
+    printScoreInLCD(score);
     //if (removeRowCount<4) score+=removeRowCount*(removeRowCount+1);  // if not 4 rows then add 1 one each row
     // else score = score<<2; // multiply by 4 for tetris
   }
