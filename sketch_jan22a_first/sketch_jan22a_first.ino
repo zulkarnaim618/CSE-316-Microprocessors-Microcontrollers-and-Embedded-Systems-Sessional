@@ -404,6 +404,7 @@ public:
   bool isContinueAvailable;
   bool inMenu;
   bool isMusicOff;
+  bool enteringName;
   int currentMenuPosition;
   Piece* generateRandomPiece() {
     // there are 7 pieces in total
@@ -766,6 +767,7 @@ public:
     inMenu = true;
     currentMenuPosition = 4;
     isMusicOff = false;
+    enteringName = false;
   }
   bool getIsGameOver() {
     return isGameOver;
@@ -926,9 +928,11 @@ public:
 
       menuSelect();
       cli();
+      //clear save state file
+      file = SD.open("state.txt", O_TRUNC | FILE_WRITE);
+      if (file) file.close();
 
       printScoreAndNextPieceInLCD();
-
 
       TCCR1A = 0;// set entire TCCR1A register to 0
       TCCR1B = 0;// same for TCCR1B
@@ -945,7 +949,7 @@ public:
 
       sei();
       TCNT1  = 0;
-
+  
       while(!inMenu && !isGameOver) {
         outputDisplayBoard();
       }
@@ -956,18 +960,80 @@ public:
       // Serial.print("HighScore to write: ");
       // Serial.println(highScore);    
       if (isGameOver) {
-          isContinueAvailable = false;
-          currentMenuPosition = 4;
-          inMenu = true;
         if (score>highScore) {
-
-          // input name
-          highScorer = "zulkar";
+          TCCR1A = 0;// set entire TCCR1A register to 0
+          TCCR1B = 0;// same for TCCR1B
+          OCR1A = 1562; // 1/5th of a second// = (16*10^6) / (1*1024) - 1 (must be <65536)
+          TCCR1B |= (1 << WGM12); // turn on CTC mode
+          TCCR1B |= (1 << CS12) | (1 << CS10);  // Set CS12 and CS10 bits for 1024 prescaler
+          TIMSK1 |= (1 << OCIE1A);
+          sei();
+          TCNT1  = 0;
+          highScorer = "";
+          currentMenuPosition = 0;
+          int show = 1;
+          char ch;
+          enteringName = true;
+          while (enteringName) {
+            lcd.setCursor(0, 0);
+            lcd.print("Enter name:     ");
+            if (show==1) {
+              lcd.setCursor(0, 1);
+              lcd.print(highScorer);
+              if (currentMenuPosition==52) {
+                lcd.write(1);
+              }
+              else if (currentMenuPosition==53) {
+                lcd.write(2);
+              }
+              else {
+                ch = (currentMenuPosition&1?'a':'A');
+                ch += currentMenuPosition/2;
+                lcd.print(ch);
+              }
+              String s = "";
+              for (int p=highScorer.length()+1;p<16;p++) s+= " ";
+              lcd.print(s);
+            }
+            else {
+              lcd.setCursor(highScorer.length(), 1);
+              lcd.print(" ");
+            }
+            delay(400);
+            show *= -1;
+          }
+          cli();
           highScore = score;
-          // file = SD.open("score.txt", O_TRUNC | FILE_WRITE);
-          // file.println(highScorer);
-          // file.println(highScore);
-          // file.close();
+          file = SD.open("score.txt", O_TRUNC | FILE_WRITE);
+          if (file) {
+            file.println(highScorer);
+            file.println(highScore);
+            file.close();
+          }
+          
+        }
+        isContinueAvailable = false;
+        currentMenuPosition = 4;
+        inMenu = true;
+      }
+      else {
+        // save state
+        file = SD.open("state.txt", O_TRUNC | FILE_WRITE);
+        if (file) {
+          file.println(score);
+          file.println(fallSpeed);
+          file.println(divSecCount);
+          file.println(currentPiece->getId());
+          file.println(currentPiece->rotateOrientation);
+          file.println(currentPiece->getOriginR());
+          file.println(currentPiece->getOriginC());
+          file.println(nextPiece->getId());
+          file.println(nextPiece->rotateOrientation);
+          file.println(isGameOver);
+          for (int i=0;i<rowSize+buffer;i++) {
+            file.println(displayBoard[i]);
+          }
+          file.close();
         }
       }
     }
@@ -979,19 +1045,20 @@ ISR(TIMER1_COMPA_vect){//timer1 interrupt 1Hz toggles pin 13 (LED)
   cli();
   matrix->divSecCount++;
   if (!matrix->inMenu) {
-    if (matrix->divSecCount%matrix->fallSpeed==0) {
-      matrix->divSecCount = 0;
-      if (matrix->permitMoveDown()) {
-        matrix->currentPiece->setOriginR(matrix->currentPiece->getOriginR()+1);
-      }
-      else {
-        matrix->printCurrentPiece();
-        matrix->removeFilledRowsAndAddScore();
-        if (matrix->gameOver()) {
-          matrix->setIsGameOver(true);
+    if (!matrix->enteringName) {
+      if (matrix->divSecCount%matrix->fallSpeed==0) {
+        matrix->divSecCount = 0;
+        if (matrix->permitMoveDown()) {
+          matrix->currentPiece->setOriginR(matrix->currentPiece->getOriginR()+1);
+        }
+        else {
+          matrix->printCurrentPiece();
+          matrix->removeFilledRowsAndAddScore();
+          if (matrix->gameOver()) {
+            matrix->setIsGameOver(true);
+          }
         }
       }
-    }
     //else {
       matrix->thumbController->xVal = analogRead(X_THUMB);
       matrix->thumbController->yVal = analogRead(Y_THUMB);
@@ -1038,6 +1105,71 @@ ISR(TIMER1_COMPA_vect){//timer1 interrupt 1Hz toggles pin 13 (LED)
       matrix->thumbController->reset();
 
     //}
+    }
+    else {
+      matrix->divSecCount = 0;
+      matrix->thumbController->xVal = analogRead(X_THUMB);
+      matrix->thumbController->yVal = analogRead(Y_THUMB);
+      matrix->thumbController->pressed = digitalRead(THUMB_PRESS);
+      if (matrix->thumbController->yVal<600 && matrix->thumbController->yVal>400) {
+        matrix->thumbController->hasComeToMiddle = true;
+      }
+      if (matrix->thumbController->pressed) {
+        matrix->thumbController->thumbUnpressed = true;
+      }
+      matrix->thumbController->yCount++;
+      matrix->thumbController->yTotalValue += matrix->thumbController->yVal;
+      matrix->thumbController->xCount++;
+      matrix->thumbController->xTotalValue += matrix->thumbController->xVal;
+      int yAvg = matrix->thumbController->yTotalValue/matrix->thumbController->yCount;
+      int xAvg = matrix->thumbController->xTotalValue/matrix->thumbController->xCount;
+      if (!matrix->thumbController->pressed) {
+        if (matrix->thumbController->thumbUnpressed) {
+          Serial.println("Thumb pressed");
+          if (matrix->currentMenuPosition==52) {
+            matrix->enteringName = false;
+            if (matrix->highScorer=="") matrix->highScorer = "Player";
+          }
+          else if (matrix->currentMenuPosition==53) {
+            if (matrix->highScorer.length()>0) matrix->highScorer = matrix->highScorer.substring(0,matrix->highScorer.length()-1);  //check for 1 length name
+          }
+          else {
+            if (matrix->highScorer.length()<12) {
+              char ch = (matrix->currentMenuPosition&1?'a':'A');
+              ch += matrix->currentMenuPosition/2;
+              matrix->highScorer += ch;           
+            }
+          }
+          matrix->currentMenuPosition = 0;
+          matrix->thumbController->thumbUnpressed = false;
+        }
+      }
+      else if (abs(yAvg-504)>abs(xAvg-504)) {
+        if (matrix->thumbController->hasComeToMiddle) {
+          if (yAvg>650) {
+            //left
+            matrix->currentMenuPosition = (matrix->currentMenuPosition-1+54)%54;
+            matrix->thumbController->hasComeToMiddle = false;
+          }
+          else if (yAvg<350) {
+            // right
+            matrix->currentMenuPosition = (matrix->currentMenuPosition+1)%54;
+            matrix->thumbController->hasComeToMiddle = false;
+          }
+        }
+      }
+      else {
+        if (xAvg>650) {
+          // down
+          matrix->currentMenuPosition = (matrix->currentMenuPosition+1)%54;
+        }
+        else if (xAvg<350) {
+          // up
+          matrix->currentMenuPosition = (matrix->currentMenuPosition-1+54)%54;
+        }
+      }
+      matrix->thumbController->reset();     
+    }
   }
   else {
 
@@ -1061,8 +1193,7 @@ ISR(TIMER1_COMPA_vect){//timer1 interrupt 1Hz toggles pin 13 (LED)
       if (matrix->thumbController->thumbUnpressed) {
         Serial.println("Thumb pressed");
         if (matrix->currentMenuPosition==0) {
-          //matrix->initializeResumeData();
-          matrix->inMenu = false;    
+          matrix->inMenu = false;
         }
         else if (matrix->currentMenuPosition==4) {
           matrix->initializeNewGame();
@@ -1111,71 +1242,84 @@ void setup() {
   Serial.begin(9600);
   matrix = new LEDMatrix();
   // sd card
-  // if (!SD.begin(SD_CARD_CS)) {
-  //   Serial.println("Can't open sdcard!");
-  //   //while (true);
-  // }
-  // file = SD.open("score.txt", FILE_WRITE);
-  // if (file) {
-  //   file.seek(0);
-  //   if (file.available()) {
-      
-  //     matrix->highScorer = file.readStringUntil('\n');
-  //   }
-  //   if (file.available()) {
-  //     matrix->highScore = file.parseInt();
-  //   }
-  // }
-  // file.close();
-  // Serial.println(matrix->highScorer);
-  // Serial.println(matrix->highScore);
-  // int cid,crotOri,nid,nrotOri;
-  // file = SD.open("state.txt", FILE_WRITE);
-  // if (file) {
-  //   file.seek(0);
-  //   if (file.available()) {
-  //     matrix->score = file.parseInt();
-  //   }
-  //   if (file.available()) {
-  //     matrix->fallSpeed = file.parseInt();
-  //   }
-  //   if (file.available()) {
-  //     matrix->divSecCount = file.parseInt();
-  //   }
-  //   if (file.available()) {
-  //     cid = file.parseInt();
-  //   }
-  //   if (file.available()) {
-  //     crotOri = file.parseInt();
-  //   }
-  //   matrix->currentPiece = PieceFactor::getPiece(cid,crotOri);
-  //   if (file.available()) {
-  //     matrix->currentPiece->setOriginR(file.parseInt());
-  //   }
-  //   if (file.available()) {
-  //     matrix->currentPiece->setOriginC(file.parseInt());
-  //   }
-  //   if (file.available()) {
-  //     nid = file.parseInt();
-  //   }
-  //   if (file.available()) {
-  //     nrotOri = file.parseInt();
-  //   }
-  //   matrix->nextPiece = PieceFactor::getPiece(nid,nrotOri);
-  //   if (file.available()) {
-  //     matrix->isGameOver = file.parseInt(); // bool type
-  //   }
-  //   for (int i=0;i<matrix->rowSize+matrix->buffer;i++) {
-  //     if (file.available()) {
-  //       matrix->displayBoard[i] = file.parseInt(); //unsigned char check
-  //     }
-  //   }
-  //   matrix->isContinueAvailable = true;
-  //   matrix->currentMenuPosition = 0;
-  // }
-  // file.close();
-  // file = SD.open("state.txt", O_TRUNC | FILE_WRITE);
-  // file.close();
+  if (!SD.begin(SD_CARD_CS)) {
+    Serial.println("Can't open sdcard!");
+  }
+  else {
+    file = SD.open("score.txt", FILE_WRITE);
+    if (file) {
+      file.seek(0);
+      if (file.available()) {
+        matrix->highScorer = file.readStringUntil('\n');
+        matrix->highScorer = matrix->highScorer.substring(0,matrix->highScorer.length()-1);
+      }
+      if (file.available()) {
+        matrix->highScore = file.parseInt();
+      }
+      file.close();
+    }
+    Serial.println(matrix->highScorer);
+    Serial.println(matrix->highScore);
+    int cid,crotOri,nid,nrotOri;
+    file = SD.open("state.txt", FILE_WRITE);
+    if (file) {
+      file.seek(0);
+      int c = 0;
+      if (file.available()) {
+        matrix->score = file.parseInt();
+        c++;
+      }
+      if (file.available()) {
+        matrix->fallSpeed = file.parseInt();
+        c++;
+      }
+      if (file.available()) {
+        matrix->divSecCount = file.parseInt();
+        c++;
+      }
+      if (file.available()) {
+        cid = file.parseInt();
+        c++;
+      }
+      if (file.available()) {
+        crotOri = file.parseInt();
+        c++;
+      }
+      matrix->currentPiece = PieceFactory::getPiece(cid,crotOri);
+      if (file.available()) {
+        matrix->currentPiece->setOriginR(file.parseInt());
+        c++;
+      }
+      if (file.available()) {
+        matrix->currentPiece->setOriginC(file.parseInt());
+        c++;
+      }
+      if (file.available()) {
+        nid = file.parseInt();
+        c++;
+      }
+      if (file.available()) {
+        nrotOri = file.parseInt();
+        c++;
+      }
+      matrix->nextPiece = PieceFactory::getPiece(nid,nrotOri);
+      if (file.available()) {
+        matrix->isGameOver = file.parseInt(); // bool type
+        c++;
+      }
+      for (int i=0;i<matrix->rowSize+matrix->buffer;i++) {
+        if (file.available()) {
+          matrix->displayBoard[i] = file.parseInt(); //unsigned char check
+          c++;
+        }
+      }
+      if (c==38) {
+        matrix->isContinueAvailable = true;
+        matrix->currentMenuPosition = 0;
+      }
+      file.close();
+    }
+  }
   // lcd
   lcd.createChar(1, continuesign);
   lcd.createChar(2, newgamesign);
