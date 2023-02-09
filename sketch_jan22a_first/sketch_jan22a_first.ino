@@ -48,47 +48,23 @@ void digitalWriteByte(int highPin, int lowPin, unsigned char byte, int highBit =
     }
 }
 
-byte continuesign[8] = {
-  B10000,
-  B11000,
-  B11100,
-  B11110,
-  B11110,
-  B11100,
-  B11000,
-  B10000
-};
-
-byte newgamesign[8]={
-
-  B11000,
-  B11100,
-  B11010,
-  B10001,
-  B11011,
-  B11110,
-  B11100,
-  B11000,
-
-};
-
 //new icons
-byte newgame_Left[] = {
-  B11110,
-  B10000,
-  B10000,
-  B10000,
-  B10000,
+byte newgame_Left[8] = {
+  B00001,
+  B00011,
+  B10111,
+  B10011,
+  B10001,
   B10000,
   B10000,
   B11111
 };
 
-byte newgame_Right[] = {
-  B01111,
-  B01001,
-  B11101,
-  B01001,
+byte newgame_Right[8] = {
+  B00000,
+  B00000,
+  B11111,
+  B00001,
   B00001,
   B00001,
   B00001,
@@ -96,7 +72,7 @@ byte newgame_Right[] = {
 };
 
 
-byte continue_Left[] = {
+byte continue_Left[8] = {
   B01100,
   B01111,
   B01111,
@@ -108,7 +84,7 @@ byte continue_Left[] = {
 };
 
 
-byte continue_Right[] = {
+byte continue_Right[8] = {
   B00000,
   B00000,
   B11000,
@@ -120,7 +96,7 @@ byte continue_Right[] = {
 };
 
 
-byte highscore_Left[] = {
+byte highscore_Left[8] = {
   B00000,
   B00001,
   B11100,
@@ -132,7 +108,7 @@ byte highscore_Left[] = {
 };
 
 
-byte highscore_Right[] = {
+byte highscore_Right[8] = {
   B10000,
   B10000,
   B10000,
@@ -144,7 +120,7 @@ byte highscore_Right[] = {
 };
 
 
-byte highscore_Left1[] = {
+byte highscore_Left1[8] = {
   B11110,
   B11110,
   B10000,
@@ -156,7 +132,7 @@ byte highscore_Left1[] = {
 };
 
 
-byte highscore_Right1[] = {
+byte highscore_Right1[8] = {
   B01111,
   B01111,
   B01111,
@@ -168,24 +144,69 @@ byte highscore_Right1[] = {
 };
 
 
+byte soundsign[8]={
+
+  B00001,
+  B00011,
+  B00111,
+  B11111,
+  B11111,
+  B00111,
+  B00011,
+  B00001
+  
+};
 
 
-// void ShowStartMenu()
-// {
-//   lcd.begin(16, 2);
-//   // lcd.setCursor(col, row)
-//   lcd.setCursor(0, 1);
-//   if(checkForPausedGame())
-//   {
-//     lcd.print("CONTINUE");
-//     lcd.setCursor(9, 0);
-    
-//   }
+byte soundoffsign[8]={
 
-//   lcd.print("NEW GAME")
+  B00000,
+  B10001,
+  B01010,
+  B00100,
+  B00100,
+  B01010,
+  B10001,
+  B00000
+  
+};
+
+byte soundonsign[8]={
+
+  B01000,
+  B00100,
+  B10010,
+  B01001,
+  B01001,
+  B10010,
+  B00100,
+  B01000,
+
+};
 
 
-// }
+byte entersign[8] = {
+  B00000,
+  B00001,
+  B00101,
+  B01101,
+  B11111,
+  B01100,
+  B00100,
+  B00000
+};
+
+
+byte backspacesign[8] = {
+  B00000,
+  B00000,
+  B00100,
+  B01100,
+  B11111,
+  B01100,
+  B00100,
+  B00000
+};
 
 class Piece {
 public:
@@ -966,7 +987,7 @@ public:
       if (show==1) {
         lcd.setCursor(0, 1);
         if (isContinueAvailable) {
-          lcd.write(1);
+          lcd.write((uint8_t)0);
           lcd.write(1);
         }
         else {
@@ -975,15 +996,15 @@ public:
         lcd.print("  ");
         lcd.setCursor(4, 1);
         lcd.write(2);
-        lcd.write(2);
+        lcd.write(3);
         lcd.print("  ");
         lcd.setCursor(8, 1);
-        lcd.write(2);
-        lcd.write(2);
+        lcd.write(4);
+        lcd.write(5);
         lcd.print("  ");
         lcd.setCursor(12, 1);
-        lcd.write(2);
-        lcd.write(2);
+        lcd.write(6);
+        lcd.write(7);
         lcd.print("  ");
       }
       else {
@@ -1072,6 +1093,8 @@ public:
           int show = 1;
           char ch;
           enteringName = true;
+          lcd.createChar(0,entersign);
+          lcd.createChar(1, backspacesign);         
           while (enteringName) {
             lcd.setCursor(0, 0);
             lcd.print("Enter name:     ");
@@ -1079,10 +1102,10 @@ public:
               lcd.setCursor(0, 1);
               lcd.print(highScorer);
               if (currentMenuPosition==52) {
-                lcd.write(1);
+                lcd.write((uint8_t)0);
               }
               else if (currentMenuPosition==53) {
-                lcd.write(2);
+                lcd.write(1);
               }
               else {
                 ch = (currentMenuPosition&1?'a':'A');
@@ -1101,6 +1124,8 @@ public:
             show *= -1;
           }
           cli();
+          lcd.createChar(0, continue_Left);
+          lcd.createChar(1, continue_Right);
           highScore = score;
           file = SD.open("score.txt", O_TRUNC | FILE_WRITE);
           if (file) {
@@ -1299,6 +1324,12 @@ ISR(TIMER1_COMPA_vect){//timer1 interrupt 1Hz toggles pin 13 (LED)
         }
         else if (matrix->currentMenuPosition==8) {
           matrix->isMusicOff = !matrix->isMusicOff;
+          if (matrix->isMusicOff) {
+            lcd.createChar(5,soundoffsign);
+          }
+          else {
+            lcd.createChar(5,soundonsign);
+          }
         }
         matrix->thumbController->thumbUnpressed = false;
       }
@@ -1418,14 +1449,15 @@ void setup() {
       file.close();
     }
   }
-  // lcd
-  lcd.createChar(1, continuesign);
-  lcd.createChar(2, newgamesign);
-  lcd.createChar(3, newgame_Left);
-
-  lcd.createChar(4, newgame_Right);
-  lcd.createChar(5, newgame_Left);
-
+  //lcd
+  lcd.createChar(0, continue_Left);
+  lcd.createChar(1, continue_Right);
+  lcd.createChar(2, newgame_Left);
+  lcd.createChar(3, newgame_Right);
+  lcd.createChar(4,soundsign);
+  lcd.createChar(5,soundonsign);
+  lcd.createChar(6, highscore_Left);
+  lcd.createChar(7, highscore_Right);
 
   lcd.begin(16,2);
   
