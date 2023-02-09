@@ -72,6 +72,104 @@ byte newgamesign[8]={
 
 };
 
+//new icons
+byte newgame_Left[] = {
+  B11110,
+  B10000,
+  B10000,
+  B10000,
+  B10000,
+  B10000,
+  B10000,
+  B11111
+};
+
+byte newgame_Right[] = {
+  B01111,
+  B01001,
+  B11101,
+  B01001,
+  B00001,
+  B00001,
+  B00001,
+  B11111
+};
+
+
+byte continue_Left[] = {
+  B01100,
+  B01111,
+  B01111,
+  B01111,
+  B01111,
+  B01111,
+  B01111,
+  B01100
+};
+
+
+byte continue_Right[] = {
+  B00000,
+  B00000,
+  B11000,
+  B11110,
+  B11110,
+  B11000,
+  B00000,
+  B00000
+};
+
+
+byte highscore_Left[] = {
+  B00000,
+  B00001,
+  B11100,
+  B10100,
+  B00100,
+  B11101,
+  B10000,
+  B11100
+};
+
+
+byte highscore_Right[] = {
+  B10000,
+  B10000,
+  B10000,
+  B10111,
+  B10001,
+  B10111,
+  B00001,
+  B00111
+};
+
+
+byte highscore_Left1[] = {
+  B11110,
+  B11110,
+  B10000,
+  B10000,
+  B10000,
+  B10000,
+  B10000,
+  B10000
+};
+
+
+byte highscore_Right1[] = {
+  B01111,
+  B01111,
+  B01111,
+  B01111,
+  B01111,
+  B00001,
+  B00001,
+  B00001
+};
+
+
+
+
 // void ShowStartMenu()
 // {
 //   lcd.begin(16, 2);
@@ -1323,6 +1421,12 @@ void setup() {
   // lcd
   lcd.createChar(1, continuesign);
   lcd.createChar(2, newgamesign);
+  lcd.createChar(3, newgame_Left);
+
+  lcd.createChar(4, newgame_Right);
+  lcd.createChar(5, newgame_Left);
+
+
   lcd.begin(16,2);
   
 }
