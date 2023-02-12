@@ -3,6 +3,7 @@
 #include<SD.h>
 #include<SPI.h>
 #include<LiquidCrystal.h>
+#include<TMRpcm.h>
 #define SPEED_LOW 7
 #define SPEED_HIGH 2
 #define LEVEL_1_SCORE 20
@@ -32,6 +33,7 @@ class LEDMatrix;
 LEDMatrix* matrix;
 File file;
 LiquidCrystal lcd(RS,EN,D4,D5,D6,D7);
+TMRpcm tmrpcm;
 
 void setPinMode(int highPin, int lowPin, int MODE) {
   for (int i=lowPin;i<=highPin;i++) {
@@ -314,10 +316,6 @@ public:
 class SPiece: public Piece {
 private:
   void setInitialPieceBoard() {
-    // this is the design of the shape
-    // first 4 bit are ignored, keep them 0
-    // last 4 bit is the design
-    // try to center the shape in the last 4*4 as much as possible
     pieceBoard[0] = 0b00000000;
     pieceBoard[1] = 0b00000110;
     pieceBoard[2] = 0b00001100;
@@ -340,10 +338,6 @@ public:
 class TPiece: public Piece {
 private:
   void setInitialPieceBoard() {
-    // this is the design of the shape
-    // first 4 bit are ignored, keep them 0
-    // last 4 bit is the design
-    // try to center the shape in the last 4*4 as much as possible
     pieceBoard[0] = 0b00000000;
     pieceBoard[1] = 0b00001110;
     pieceBoard[2] = 0b00000100;
@@ -366,10 +360,6 @@ public:
 class JPiece: public Piece {
 private:
   void setInitialPieceBoard() {
-    // this is the design of the shape
-    // first 4 bit are ignored, keep them 0
-    // last 4 bit is the design
-    // try to center the shape in the last 4*4 as much as possible
     pieceBoard[0] = 0b00000000;
     pieceBoard[1] = 0b00000010;
     pieceBoard[2] = 0b00000010;
@@ -392,10 +382,6 @@ public:
 class LPiece: public Piece {
 private:
   void setInitialPieceBoard() {
-    // this is the design of the shape
-    // first 4 bit are ignored, keep them 0
-    // last 4 bit is the design
-    // try to center the shape in the last 4*4 as much as possible
     pieceBoard[0] = 0b00000000;
     pieceBoard[1] = 0b00000100;
     pieceBoard[2] = 0b00000100;
@@ -418,10 +404,6 @@ public:
 class OPiece: public Piece {
 private:
   void setInitialPieceBoard() {
-    // this is the design of the shape
-    // first 4 bit are ignored, keep them 0
-    // last 4 bit is the design
-    // try to center the shape in the last 4*4 as much as possible
     pieceBoard[0] = 0b00000000;
     pieceBoard[1] = 0b00000110;
     pieceBoard[2] = 0b00000110;
@@ -444,10 +426,6 @@ public:
 class IPiece: public Piece {
 private:
   void setInitialPieceBoard() {
-    // this is the design of the shape
-    // first 4 bit are ignored, keep them 0
-    // last 4 bit is the design
-    // try to center the shape in the last 4*4 as much as possible
     pieceBoard[0] = 0b00000100;
     pieceBoard[1] = 0b00000100;
     pieceBoard[2] = 0b00000100;
@@ -501,7 +479,6 @@ public:
   void reset() {
     xCount = yCount = xTotalValue = yTotalValue = xVal = yVal = 0;
     pressed = true;
-    //Serial.print("Resetting --------------------------\n");
   }
 };
 class LEDMatrix {
@@ -532,6 +509,11 @@ public:
     return PieceFactory::getPiece(randomNumber,rotOri);     
   }
   void printCurrentPiece() {
+    if (!isMusicOff) {
+      ////tmrpcm.stopPlayback();
+      tmrpcm.play("music/brickFall2.wav");
+      //delay(5000);
+    }
     for (int i=0;i<currentPiece->getRowSize();i++) {
       if ((currentPiece->getOriginC()-currentPiece->getColSize()+1)<0) {
         displayBoard[currentPiece->getOriginR()+i] |= (currentPiece->getPieceBoard()[i]>>(-(currentPiece->getOriginC()-currentPiece->getColSize()+1)));
@@ -576,26 +558,10 @@ public:
         }        
       }
       if ((currentPiece->getOriginC()-(currentPiece->getColSize()-i-1)+1>=colSize && tempPieceCol) || tempPieceCol&tempDisplayCol) {
-        // if (currentPiece->getOriginC()-(currentPiece->getColSize()-i-1)+1>=colSize && tempPieceCol) {
-        //   Serial.print("Left Wall reached\n");
-        //   Serial.print("Col: ");
-        //   Serial.print(currentPiece->getOriginC()-(currentPiece->getColSize()-i-1)+1);
-        //   Serial.print("\n");
-        // }
-        // else {
-        //   Serial.print("Piece: ");
-        //   Serial.print(tempPieceCol);
-        //   Serial.print("\nBoard: ");
-        //   Serial.print(tempDisplayCol);
-        //   Serial.print("\nLeft Block found\n");
-        // }
         ok = false;
         break;
       }
     }
-    // Serial.print("left: ");
-    // Serial.print(ok);
-    // Serial.print("\n");
     return ok;
   }
   bool permitMoveRight() {
@@ -606,11 +572,6 @@ public:
       for (int j=0;j<currentPiece->getRowSize();j++) {
         if (currentPiece->getPieceBoard()[j]&(1<<i)) {
           tempPieceCol |= (1<<(currentPiece->getRowSize()-j-1));
-          // Serial.print("Col: ");
-          // Serial.print(i);
-          // Serial.print("Row: ");
-          // Serial.print(j);
-          // Serial.print(" setting\n");
         }
         if ((currentPiece->getOriginC()-(currentPiece->getColSize()-i-1)-1)<0) {
           if (displayBoard[currentPiece->getOriginR()+j]&(1>>(-(currentPiece->getOriginC()-(currentPiece->getColSize()-i-1)-1)))) {
@@ -627,34 +588,10 @@ public:
         }        
       }
       if ((currentPiece->getOriginC()-(currentPiece->getColSize()-i-1)-1<0 && tempPieceCol) || tempPieceCol&tempDisplayCol) {
-        // if (currentPiece->getOriginC()-(currentPiece->getColSize()-i-1)-1<0 && tempPieceCol) {
-        //   Serial.print("Right Wall reached\n");
-        //   Serial.print(currentPiece->getOriginC());
-        //   Serial.print(" ");
-        //   Serial.print((currentPiece->getColSize()-i-1));
-        //   Serial.print("\n");
-        //   Serial.print("Col: ");
-        //   Serial.print(currentPiece->getOriginC()-(currentPiece->getColSize()-i-1)-1);
-        //   Serial.print("\n");
-        //   Serial.print("Piece: ");
-        //   Serial.print(tempPieceCol);
-        //   Serial.print("\n");
-          
-        // }
-        // else {
-        //   Serial.print("Piece: ");
-        //   Serial.print(tempPieceCol);
-        //   Serial.print("\nBoard: ");
-        //   Serial.print(tempDisplayCol);
-        //   Serial.print("\nRight Block found\n");
-        // }
         ok = false;
         break;
       }
     }
-    // Serial.print("Right: ");
-    // Serial.print(ok);
-    // Serial.print("\n");
     return ok;
   }
   bool permitActionRotateAdvanced() {
@@ -684,15 +621,7 @@ public:
           colLow = min(colLow,currentPiece->getOriginC()-currentPiece->getColSize()+1+icol);
           colHigh = max(colHigh,currentPiece->getOriginC()-currentPiece->getColSize()+1+icol);
           colLow = min(colLow,currentPiece->getOriginC()-currentPiece->getColSize()+1+ccol);
-          colHigh = max(colHigh,currentPiece->getOriginC()-currentPiece->getColSize()+1+ccol);
-          // Serial.print("Row: ");
-          // Serial.print(i);
-          // Serial.print("\tCol: ");
-          // Serial.print(j);
-          // Serial.print("\tCol low: ");
-          // Serial.print(colLow);
-          // Serial.print("\tCol High: ");
-          // Serial.println(colHigh);       
+          colHigh = max(colHigh,currentPiece->getOriginC()-currentPiece->getColSize()+1+ccol);      
           if (crow<=irow) {
             if (ccol>icol) {
                 for (;icol<=ccol;icol++) spacemap[irow] |= (1<<icol);
@@ -724,28 +653,6 @@ public:
         }
       }
     }
-    // Serial.print("Col Low: ");
-    // Serial.println(colLow);
-    // Serial.print("Col High: ");
-    // Serial.println(colHigh);
-    // for (int i=0;i<currentPiece->getRowSize();i++) {
-    //   if (spacemap[i]) {
-    //     rowLow = min(rowLow,currentPiece->getOriginR()+i);
-    //     rowHigh = max(rowHigh,currentPiece->getOriginR()+i);
-    //   }
-    // }
-    // for (int i=0;i<currentPiece->getColSize();i++) {
-    //   unsigned char tempPieceCol = 0b00000000;
-    //   for (int j=0;j<currentPiece->getRowSize();j++) {
-    //     if (spacemap[j]&(1<<i)) {
-    //       tempPieceCol |= (1<<(currentPiece->getRowSize()-j-1));
-    //     }
-    //   }
-    //   if (tempPieceCol) {
-    //     colLow = min(colLow,currentPiece->getOriginC()-currentPiece->getColSize()+1+i);
-    //     colHigh = max(colHigh,currentPiece->getOriginC()-currentPiece->getColSize()+1+i);
-    //   }
-    // }
     if ((rowLow>=0 && rowHigh<=rowSize+buffer-1 && rowLow<=rowHigh) && (colLow<=colHigh)) {
       if (colLow<0) {
         rotateOffset = colLow;
@@ -843,6 +750,12 @@ public:
       else displayBoard[i] = 0b00000000;
       if (recheck) i++;
     }
+    if (!isMusicOff) {
+      if (removeRowCount>=1) {
+        //tmrpcm.stopPlayback();
+        tmrpcm.play("gameRotate.wav");
+      }
+    }
     score+=removeRowCount*(removeRowCount+1);
     if (score>LEVEL_5_SCORE) fallSpeed = 2;
     else if (score>LEVEL_4_SCORE) fallSpeed = 3;
@@ -850,13 +763,7 @@ public:
     else if (score>LEVEL_2_SCORE) fallSpeed = 5;
     else if (score>LEVEL_1_SCORE) fallSpeed = 6;
     else fallSpeed = 7;
-    Serial.print("Score: ");
-    //char sscore[100];
-    //sprintf(sscore,"%"PRId64,score);
-    Serial.println(score);
     printScoreAndNextPieceInLCD();
-    //if (removeRowCount<4) score+=removeRowCount*(removeRowCount+1);  // if not 4 rows then add 1 one each row
-    // else score = score<<2; // multiply by 4 for tetris
   }
   bool gameOver() {
     bool over = false;
@@ -912,15 +819,6 @@ public:
         else {
           temp |= (currentPiece->getPieceBoard()[i+buffer-currentPiece->getOriginR()]<<(currentPiece->getOriginC()-currentPiece->getColSize()+1));
         }
-        
-        //temp = 0b00111100;
-        // for (int j=0;j<colSize;j++) {
-        //   if (j>=currentPiece->getOriginC()-currentPiece->getColSize() && j<=currentPiece->getOriginC()) {
-        //     if (currentPiece->getPieceBoard()[i+buffer-currentPiece->getOriginR()]&(1<<(j-(currentPiece->getOriginC()-currentPiece->getColSize())))) {
-        //       temp |= (1<<j);
-        //     }
-        //   }
-        // }
       }
       digitalWriteByte(COL_HIGH,COL_LOW,displayBoard[i+buffer]|temp);
       digitalWrite(ROW_ENABLE,HIGH);
@@ -1029,21 +927,15 @@ public:
   }
   void playGame() {
     while (true) {
-      TCCR1A = 0;// set entire TCCR1A register to 0
-      TCCR1B = 0;// same for TCCR1B
-
-      // set compare match register for 1hz increments
-      OCR1A = 1562; // 1/5th of a second// = (16*10^6) / (1*1024) - 1 (must be <65536)
-      // turn on CTC mode
-      TCCR1B |= (1 << WGM12);
-      // Set CS12 and CS10 bits for 1024 prescaler
-      TCCR1B |= (1 << CS12) | (1 << CS10);  
-      // enable timer compare interrupt
-      
-      TIMSK1 |= (1 << OCIE1A);
+      TCCR3A = 0;
+      TCCR3B = 0;
+      OCR3A = 1562;
+      TCCR3B |= (1 << WGM32);
+      TCCR3B |= (1 << CS32) | (1 << CS30);  
+      TIMSK3 |= (1 << OCIE3A);
 
       sei();
-      TCNT1  = 0;
+      TCNT3  = 0;
 
       menuSelect();
       cli();
@@ -1052,42 +944,31 @@ public:
       if (file) file.close();
 
       printScoreAndNextPieceInLCD();
-
-      TCCR1A = 0;// set entire TCCR1A register to 0
-      TCCR1B = 0;// same for TCCR1B
-
-      // set compare match register for 1hz increments
-      OCR1A = 1562; // 1/5th of a second// = (16*10^6) / (1*1024) - 1 (must be <65536)
-      // turn on CTC mode
-      TCCR1B |= (1 << WGM12);
-      // Set CS12 and CS10 bits for 1024 prescaler
-      TCCR1B |= (1 << CS12) | (1 << CS10);  
-      // enable timer compare interrupt
+      TCCR3A = 0;
+      TCCR3B = 0;
+      OCR3A = 1562;
+      TCCR3B |= (1 << WGM32);
+      TCCR3B |= (1 << CS32) | (1 << CS30);  
       
-      TIMSK1 |= (1 << OCIE1A);
+      TIMSK3 |= (1 << OCIE3A);
 
       sei();
-      TCNT1  = 0;
+      TCNT3  = 0;
   
       while(!inMenu && !isGameOver) {
         outputDisplayBoard();
       }
-      cli();
-      // write score to sd card
-      // Serial.print("Score to write: ");
-      // Serial.println(score);
-      // Serial.print("HighScore to write: ");
-      // Serial.println(highScore);    
+      cli(); 
       if (isGameOver) {
         if (score>highScore) {
-          TCCR1A = 0;// set entire TCCR1A register to 0
-          TCCR1B = 0;// same for TCCR1B
-          OCR1A = 1562; // 1/5th of a second// = (16*10^6) / (1*1024) - 1 (must be <65536)
-          TCCR1B |= (1 << WGM12); // turn on CTC mode
-          TCCR1B |= (1 << CS12) | (1 << CS10);  // Set CS12 and CS10 bits for 1024 prescaler
-          TIMSK1 |= (1 << OCIE1A);
+          TCCR3A = 0;
+          TCCR3B = 0;
+          OCR3A = 1562;
+          TCCR3B |= (1 << WGM32);
+          TCCR3B |= (1 << CS32) | (1 << CS30);  
+          TIMSK3 |= (1 << OCIE3A);
           sei();
-          TCNT1  = 0;
+          TCNT3  = 0;
           highScorer = "";
           currentMenuPosition = 0;
           int show = 1;
@@ -1133,7 +1014,6 @@ public:
             file.println(highScore);
             file.close();
           }
-          
         }
         isContinueAvailable = false;
         currentMenuPosition = 4;
@@ -1163,8 +1043,7 @@ public:
   }
 };
 
-ISR(TIMER1_COMPA_vect){//timer1 interrupt 1Hz toggles pin 13 (LED)
-//generates pulse wave of frequency 1Hz/2 = 0.5kHz (takes two cycles for full wave- toggle high then toggle low)
+ISR(TIMER3_COMPA_vect) {
   cli();
   matrix->divSecCount++;
   if (!matrix->inMenu) {
@@ -1179,10 +1058,12 @@ ISR(TIMER1_COMPA_vect){//timer1 interrupt 1Hz toggles pin 13 (LED)
           matrix->removeFilledRowsAndAddScore();
           if (matrix->gameOver()) {
             matrix->setIsGameOver(true);
+            if (!matrix->isMusicOff) {
+              tmrpcm.play("caution.wav");
+            }
           }
         }
       }
-    //else {
       matrix->thumbController->xVal = analogRead(X_THUMB);
       matrix->thumbController->yVal = analogRead(Y_THUMB);
       matrix->thumbController->pressed = digitalRead(THUMB_PRESS);
@@ -1207,10 +1088,22 @@ ISR(TIMER1_COMPA_vect){//timer1 interrupt 1Hz toggles pin 13 (LED)
       }
       else if (abs(yAvg-504)>abs(xAvg-504)) {
         if (yAvg>650) {
-          if (matrix->permitMoveLeft()) matrix->currentPiece->setOriginC(matrix->currentPiece->getOriginC()+1);
+          if (matrix->permitMoveLeft()) {
+            matrix->currentPiece->setOriginC(matrix->currentPiece->getOriginC()+1);
+            if (!matrix->isMusicOff) {
+              //tmrpcm.stopPlayback();
+              tmrpcm.play("brickRotate2.wav");
+            }
+          }
         }
         else if (yAvg<350) {
-          if (matrix->permitMoveRight()) matrix->currentPiece->setOriginC(matrix->currentPiece->getOriginC()-1);
+          if (matrix->permitMoveRight()) {
+            matrix->currentPiece->setOriginC(matrix->currentPiece->getOriginC()-1);
+            if (!matrix->isMusicOff) {
+              //tmrpcm.stopPlayback();
+              tmrpcm.play("brickRotate2.wav");
+            }
+          }
         }
       }
       else {
@@ -1219,6 +1112,10 @@ ISR(TIMER1_COMPA_vect){//timer1 interrupt 1Hz toggles pin 13 (LED)
             matrix->currentPiece->rotatePieceBoard();
             matrix->currentPiece->setOriginC(matrix->currentPiece->getOriginC()-matrix->rotateOffset);
             matrix->thumbController->hasComeToMiddle = false;
+            if (!matrix->isMusicOff) {
+              //tmrpcm.stopPlayback();
+              tmrpcm.play("brickRotate2.wav");
+            }
           }
         }
         else if (xAvg>650) {
@@ -1226,8 +1123,6 @@ ISR(TIMER1_COMPA_vect){//timer1 interrupt 1Hz toggles pin 13 (LED)
         }
       }
       matrix->thumbController->reset();
-
-    //}
     }
     else {
       matrix->divSecCount = 0;
@@ -1248,7 +1143,6 @@ ISR(TIMER1_COMPA_vect){//timer1 interrupt 1Hz toggles pin 13 (LED)
       int xAvg = matrix->thumbController->xTotalValue/matrix->thumbController->xCount;
       if (!matrix->thumbController->pressed) {
         if (matrix->thumbController->thumbUnpressed) {
-          Serial.println("Thumb pressed");
           if (matrix->currentMenuPosition==52) {
             matrix->enteringName = false;
             if (matrix->highScorer=="") matrix->highScorer = "Player";
@@ -1314,7 +1208,6 @@ ISR(TIMER1_COMPA_vect){//timer1 interrupt 1Hz toggles pin 13 (LED)
     int xAvg = matrix->thumbController->xTotalValue/matrix->thumbController->xCount;
     if (!matrix->thumbController->pressed) {
       if (matrix->thumbController->thumbUnpressed) {
-        Serial.println("Thumb pressed");
         if (matrix->currentMenuPosition==0) {
           matrix->inMenu = false;
         }
@@ -1351,16 +1244,12 @@ ISR(TIMER1_COMPA_vect){//timer1 interrupt 1Hz toggles pin 13 (LED)
       }
     }
     matrix->thumbController->reset();
-
   }
-  
-  sei();//allow interrupts
-  TCNT1  = 0;
+  sei();
+  TCNT3  = 0;
 }
 
-// setup and loop
 void setup() {
-  // high pin number always represents high bit and low pin number represents low bit
   randomSeed(analogRead(A10));
   pinMode(ROW_ENABLE,OUTPUT);
   pinMode(THUMB_PRESS,INPUT);
@@ -1368,6 +1257,8 @@ void setup() {
   setPinMode(COL_HIGH,COL_LOW,OUTPUT);
   digitalWrite(ROW_ENABLE,LOW);
   digitalWrite(THUMB_PRESS,HIGH);
+  tmrpcm.speakerPin = 11;
+  pinMode(12,OUTPUT);
   Serial.begin(9600);
   matrix = new LEDMatrix();
   // sd card
@@ -1387,8 +1278,6 @@ void setup() {
       }
       file.close();
     }
-    Serial.println(matrix->highScorer);
-    Serial.println(matrix->highScore);
     int cid,crotOri,nid,nrotOri;
     file = SD.open("state.txt", FILE_WRITE);
     if (file) {
@@ -1461,6 +1350,7 @@ void setup() {
 
   lcd.begin(16,2);
   
+  tmrpcm.setVolume(7);
 }
 
 void loop() {
