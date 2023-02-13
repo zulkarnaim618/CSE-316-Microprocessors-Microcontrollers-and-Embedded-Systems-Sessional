@@ -1249,6 +1249,13 @@ ISR(TIMER3_COMPA_vect) {
   TCNT3  = 0;
 }
 
+void clearHighScore() {
+  file = SD.open("score.txt", O_TRUNC | FILE_WRITE);
+  if (file) {
+    file.close();
+  }
+}
+
 void setup() {
   randomSeed(analogRead(A10));
   pinMode(ROW_ENABLE,OUTPUT);
@@ -1266,6 +1273,8 @@ void setup() {
     Serial.println("Can't open sdcard!");
   }
   else {
+    // uncomment for clearing high score
+    //clearHighScore();
     file = SD.open("score.txt", FILE_WRITE);
     if (file) {
       file.seek(0);
