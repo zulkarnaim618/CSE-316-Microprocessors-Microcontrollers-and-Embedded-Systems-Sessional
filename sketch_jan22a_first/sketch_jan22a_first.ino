@@ -511,7 +511,8 @@ public:
   void printCurrentPiece() {
     if (!isMusicOff) {
       ////tmrpcm.stopPlayback();
-      tmrpcm.play("music/brickFall2.wav");
+      //tmrpcm.play("caution.wav");
+      //Serial.println("Print piece");
       //delay(5000);
     }
     for (int i=0;i<currentPiece->getRowSize();i++) {
@@ -528,6 +529,7 @@ public:
     nextPiece = generateRandomPiece();
   }
   bool permitMoveDown() {
+    //Serial.println("in move down");
     bool ok = true;
     for (int i=currentPiece->getRowSize()-1;i>=0;i--) {
       unsigned char tempPieceRow = 0b00000000;
@@ -537,11 +539,13 @@ public:
       else {
         tempPieceRow |= (currentPiece->getPieceBoard()[i]<<(currentPiece->getOriginC()-currentPiece->getColSize()+1));
       }
-      if((currentPiece->getOriginR()-buffer+i+1>=rowSize && tempPieceRow) || (displayBoard[currentPiece->getOriginR()+i+1]&tempPieceRow)) {
+      //Serial.println(currentPiece->getOriginR()+i+1);
+      if((currentPiece->getOriginR()-buffer+i+1>=rowSize && tempPieceRow) || (currentPiece->getOriginR()+i+1<rowSize+buffer && (displayBoard[currentPiece->getOriginR()+i+1]&tempPieceRow))) {
         ok = false;
         break;
       }
     }
+    //Serial.println("out move down");
     return ok;
   }
   bool permitMoveLeft() {
@@ -753,7 +757,8 @@ public:
     if (!isMusicOff) {
       if (removeRowCount>=1) {
         //tmrpcm.stopPlayback();
-        tmrpcm.play("gameRotate.wav");
+        //tmrpcm.play("caution.wav");
+        //Serial.println("Removing filled rows");
       }
     }
     score+=removeRowCount*(removeRowCount+1);
@@ -850,6 +855,7 @@ public:
     int show = 1;
     int cnt = 0;
     while (inMenu) {
+      //Serial.println("Select menu");
       lcd.setCursor(0,0);
       if (isContinueAvailable && currentMenuPosition==0) {
         lcd.print("Resume          ");
@@ -956,9 +962,10 @@ public:
       TCNT3  = 0;
   
       while(!inMenu && !isGameOver) {
+        //Serial.println("Gaming");
         outputDisplayBoard();
       }
-      cli(); 
+      cli();
       if (isGameOver) {
         if (score>highScore) {
           TCCR3A = 0;
@@ -977,6 +984,7 @@ public:
           lcd.createChar(0,entersign);
           lcd.createChar(1, backspacesign);         
           while (enteringName) {
+            //Serial.println("enter name");
             lcd.setCursor(0, 0);
             lcd.print("Enter name:     ");
             if (show==1) {
@@ -1020,6 +1028,7 @@ public:
         inMenu = true;
       }
       else {
+        tmrpcm.stopPlayback();
         // save state
         file = SD.open("state.txt", O_TRUNC | FILE_WRITE);
         if (file) {
@@ -1044,85 +1053,95 @@ public:
 };
 
 ISR(TIMER3_COMPA_vect) {
+  //Serial.println("sampling");
   cli();
   matrix->divSecCount++;
   if (!matrix->inMenu) {
     if (!matrix->enteringName) {
-      if (matrix->divSecCount%matrix->fallSpeed==0) {
-        matrix->divSecCount = 0;
-        if (matrix->permitMoveDown()) {
-          matrix->currentPiece->setOriginR(matrix->currentPiece->getOriginR()+1);
-        }
-        else {
-          matrix->printCurrentPiece();
-          matrix->removeFilledRowsAndAddScore();
-          if (matrix->gameOver()) {
-            matrix->setIsGameOver(true);
-            if (!matrix->isMusicOff) {
-              tmrpcm.play("caution.wav");
-            }
-          }
-        }
-      }
-      matrix->thumbController->xVal = analogRead(X_THUMB);
-      matrix->thumbController->yVal = analogRead(Y_THUMB);
-      matrix->thumbController->pressed = digitalRead(THUMB_PRESS);
-      if (matrix->thumbController->pressed) {
-        matrix->thumbController->thumbUnpressed = true;
-      }
-      if (matrix->thumbController->xVal<600 && matrix->thumbController->xVal>400) {
-        matrix->thumbController->hasComeToMiddle = true;
-      }
-      matrix->thumbController->yCount++;
-      matrix->thumbController->yTotalValue += matrix->thumbController->yVal;
-      matrix->thumbController->xCount++;
-      matrix->thumbController->xTotalValue += matrix->thumbController->xVal;
-      int yAvg = matrix->thumbController->yTotalValue/matrix->thumbController->yCount;
-      int xAvg = matrix->thumbController->xTotalValue/matrix->thumbController->xCount;
-      if (!matrix->thumbController->pressed) {
-        if (matrix->thumbController->thumbUnpressed) {
-          matrix->inMenu = true;
-          matrix->currentMenuPosition = 0;
-          matrix->thumbController->thumbUnpressed = false;
-        }
-      }
-      else if (abs(yAvg-504)>abs(xAvg-504)) {
-        if (yAvg>650) {
-          if (matrix->permitMoveLeft()) {
-            matrix->currentPiece->setOriginC(matrix->currentPiece->getOriginC()+1);
-            if (!matrix->isMusicOff) {
-              //tmrpcm.stopPlayback();
-              tmrpcm.play("brickRotate2.wav");
-            }
-          }
-        }
-        else if (yAvg<350) {
-          if (matrix->permitMoveRight()) {
-            matrix->currentPiece->setOriginC(matrix->currentPiece->getOriginC()-1);
-            if (!matrix->isMusicOff) {
-              //tmrpcm.stopPlayback();
-              tmrpcm.play("brickRotate2.wav");
-            }
+      if (!matrix->permitMoveDown()) {
+        matrix->printCurrentPiece();
+        matrix->removeFilledRowsAndAddScore();
+        if (matrix->gameOver()) {
+          matrix->setIsGameOver(true);
+          if (!matrix->isMusicOff) {
+            //tmrpcm.play("caution.wav");
+            //Serial.println("Game over");
           }
         }
       }
       else {
-        if (xAvg<350) {
-          if (matrix->thumbController->hasComeToMiddle && matrix->permitActionRotateAdvanced()) {
-            matrix->currentPiece->rotatePieceBoard();
-            matrix->currentPiece->setOriginC(matrix->currentPiece->getOriginC()-matrix->rotateOffset);
-            matrix->thumbController->hasComeToMiddle = false;
-            if (!matrix->isMusicOff) {
-              //tmrpcm.stopPlayback();
-              tmrpcm.play("brickRotate2.wav");
+        if (matrix->divSecCount%matrix->fallSpeed==0) {
+          matrix->divSecCount = 0;
+          matrix->currentPiece->setOriginR(matrix->currentPiece->getOriginR()+1);
+        }
+        matrix->thumbController->xVal = analogRead(X_THUMB);
+        matrix->thumbController->yVal = analogRead(Y_THUMB);
+        matrix->thumbController->pressed = digitalRead(THUMB_PRESS);
+        if (matrix->thumbController->pressed) {
+          matrix->thumbController->thumbUnpressed = true;
+        }
+        if (matrix->thumbController->xVal<600 && matrix->thumbController->xVal>400) {
+          matrix->thumbController->hasComeToMiddle = true;
+        }
+        matrix->thumbController->yCount++;
+        matrix->thumbController->yTotalValue += matrix->thumbController->yVal;
+        matrix->thumbController->xCount++;
+        matrix->thumbController->xTotalValue += matrix->thumbController->xVal;
+        // //Serial.print("Xval: ");
+        // //Serial.print(matrix->thumbController->xVal);
+        // //Serial.print("\tYval: ");
+        // //Serial.println(matrix->thumbController->yVal);
+        int yAvg = matrix->thumbController->yTotalValue/matrix->thumbController->yCount;
+        int xAvg = matrix->thumbController->xTotalValue/matrix->thumbController->xCount;
+        if (!matrix->thumbController->pressed) {
+          if (matrix->thumbController->thumbUnpressed) {
+            matrix->inMenu = true;
+            matrix->currentMenuPosition = 0;
+            matrix->thumbController->thumbUnpressed = false;
+          }
+        }
+        else if (abs(yAvg-504)>abs(xAvg-504)) {
+          if (yAvg>650) {
+            if (matrix->permitMoveLeft()) {
+              matrix->currentPiece->setOriginC(matrix->currentPiece->getOriginC()+1);
+              if (!matrix->isMusicOff) {
+                //tmrpcm.stopPlayback();
+                //tmrpcm.play("caution.wav");
+                //Serial.println("right");
+              }
+            }
+          }
+          else if (yAvg<350) {
+            if (matrix->permitMoveRight()) {
+              matrix->currentPiece->setOriginC(matrix->currentPiece->getOriginC()-1);
+              if (!matrix->isMusicOff) {
+                //tmrpcm.stopPlayback();
+                //tmrpcm.play("caution.wav");
+                //Serial.println("left");
+              }
             }
           }
         }
-        else if (xAvg>650) {
-          if (matrix->permitMoveDown()) matrix->currentPiece->setOriginR(matrix->currentPiece->getOriginR()+1);
+        else {
+          if (xAvg<250) {
+            if (matrix->thumbController->hasComeToMiddle && matrix->permitActionRotateAdvanced()) {
+              // //Serial.print("Rotating: ");
+              // //Serial.println(xAvg);
+              matrix->currentPiece->rotatePieceBoard();
+              matrix->currentPiece->setOriginC(matrix->currentPiece->getOriginC()-matrix->rotateOffset);
+              matrix->thumbController->hasComeToMiddle = false;
+              if (!matrix->isMusicOff) {
+                //tmrpcm.stopPlayback();
+                //tmrpcm.play("4.wav");
+                //Serial.println("rotate");
+              }
+            }
+          }
+          else if (xAvg>750) {
+            if (matrix->permitMoveDown()) matrix->currentPiece->setOriginR(matrix->currentPiece->getOriginR()+1);
+          }
         }
       }
-      matrix->thumbController->reset();
     }
     else {
       matrix->divSecCount = 0;
@@ -1176,20 +1195,18 @@ ISR(TIMER3_COMPA_vect) {
         }
       }
       else {
-        if (xAvg>650) {
+        if (xAvg>700) {
           // down
           matrix->currentMenuPosition = (matrix->currentMenuPosition+1)%54;
         }
-        else if (xAvg<350) {
+        else if (xAvg<300) {
           // up
           matrix->currentMenuPosition = (matrix->currentMenuPosition-1+54)%54;
         }
-      }
-      matrix->thumbController->reset();     
+      }   
     }
   }
   else {
-
     matrix->divSecCount = 0;
     matrix->thumbController->xVal = analogRead(X_THUMB);
     matrix->thumbController->yVal = analogRead(Y_THUMB);
@@ -1243,8 +1260,8 @@ ISR(TIMER3_COMPA_vect) {
         }
       }
     }
-    matrix->thumbController->reset();
   }
+  matrix->thumbController->reset();  
   sei();
   TCNT3  = 0;
 }
@@ -1270,7 +1287,7 @@ void setup() {
   matrix = new LEDMatrix();
   // sd card
   if (!SD.begin(SD_CARD_CS)) {
-    Serial.println("Can't open sdcard!");
+    //Serial.println("Can't open sdcard!");
   }
   else {
     // uncomment for clearing high score
@@ -1358,8 +1375,9 @@ void setup() {
   lcd.createChar(7, highscore_Right);
 
   lcd.begin(16,2);
-  
-  tmrpcm.setVolume(7);
+  tmrpcm.quality(1);
+  tmrpcm.setVolume(1);
+  ////tmrpcm.play("caution.wav");
 }
 
 void loop() {
