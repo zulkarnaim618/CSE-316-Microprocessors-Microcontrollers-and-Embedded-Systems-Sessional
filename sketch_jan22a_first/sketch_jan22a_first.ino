@@ -511,7 +511,7 @@ public:
   void printCurrentPiece() {
     if (!isMusicOff) {
       ////tmrpcm.stopPlayback();
-      //tmrpcm.play("caution.wav");
+      tmrpcm.play("ard_brickfall.wav");
       //Serial.println("Print piece");
       //delay(5000);
     }
@@ -755,10 +755,22 @@ public:
       if (recheck) i++;
     }
     if (!isMusicOff) {
-      if (removeRowCount>=1) {
-        //tmrpcm.stopPlayback();
-        //tmrpcm.play("caution.wav");
+      if (removeRowCount==1) {
+        tmrpcm.stopPlayback();
+        tmrpcm.play("ard_single.wav");
         //Serial.println("Removing filled rows");
+      }
+      else if (removeRowCount==2) {
+        tmrpcm.stopPlayback();
+        tmrpcm.play("ard_double.wav");
+      }
+      else if (removeRowCount==3) {
+        tmrpcm.stopPlayback();
+        tmrpcm.play("ard_triple.wav");
+      }
+      else if (removeRowCount>=4) {
+        tmrpcm.stopPlayback();
+        tmrpcm.play("ard_tetris.wav");
       }
     }
     score+=removeRowCount*(removeRowCount+1);
@@ -1064,7 +1076,7 @@ ISR(TIMER3_COMPA_vect) {
         if (matrix->gameOver()) {
           matrix->setIsGameOver(true);
           if (!matrix->isMusicOff) {
-            //tmrpcm.play("caution.wav");
+            tmrpcm.play("ard_caution.wav");
             //Serial.println("Game over");
           }
         }
@@ -1106,7 +1118,7 @@ ISR(TIMER3_COMPA_vect) {
               matrix->currentPiece->setOriginC(matrix->currentPiece->getOriginC()+1);
               if (!matrix->isMusicOff) {
                 //tmrpcm.stopPlayback();
-                //tmrpcm.play("caution.wav");
+                tmrpcm.play("ard_blockmove.wav");
                 //Serial.println("right");
               }
             }
@@ -1116,7 +1128,7 @@ ISR(TIMER3_COMPA_vect) {
               matrix->currentPiece->setOriginC(matrix->currentPiece->getOriginC()-1);
               if (!matrix->isMusicOff) {
                 //tmrpcm.stopPlayback();
-                //tmrpcm.play("caution.wav");
+                tmrpcm.play("ard_blockmove.wav");
                 //Serial.println("left");
               }
             }
@@ -1132,7 +1144,7 @@ ISR(TIMER3_COMPA_vect) {
               matrix->thumbController->hasComeToMiddle = false;
               if (!matrix->isMusicOff) {
                 //tmrpcm.stopPlayback();
-                //tmrpcm.play("4.wav");
+                tmrpcm.play("ard_blockmove.wav");
                 //Serial.println("rotate");
               }
             }
@@ -1287,7 +1299,7 @@ void setup() {
   matrix = new LEDMatrix();
   // sd card
   if (!SD.begin(SD_CARD_CS)) {
-    //Serial.println("Can't open sdcard!");
+    Serial.println("Can't open sdcard!");
   }
   else {
     // uncomment for clearing high score
@@ -1376,8 +1388,8 @@ void setup() {
 
   lcd.begin(16,2);
   tmrpcm.quality(1);
-  tmrpcm.setVolume(1);
-  ////tmrpcm.play("caution.wav");
+  tmrpcm.setVolume(6);
+  //tmrpcm.play("1.wav");
 }
 
 void loop() {
